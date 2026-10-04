@@ -78,8 +78,8 @@ if kind == "pr":
     lines += ["", "Merging records upstream progress, so the next sync only sees newer changes. "
               "Run `pstack/port/smoke/smoke.py` before merging if a ported skill changed.",
               "", f"CI for this branch: https://github.com/{repo}/actions/workflows/pstack-ci.yml?query=branch%3A{branch}. "
-              "GitHub holds the pull request's own CI run because the Actions bot opened it. "
-              "Approve that run to show the checks here, or read the dispatched run at the link."]
+              "GitHub holds this pull request's own runs because the Actions bot opened it, and `main` "
+              "requires their checks. Click **Approve workflows to run** to start them. The run at the link is an early result only."]
 else:
     lines += ["", "To resolve, create a branch from `main` and run `pstack/port/merge-upstream.py` on it. Fix the files above, "
               "commit the merge, push the branch, and open a pull request. Merge it with a merge commit (`gh pr merge --merge`), "

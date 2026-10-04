@@ -64,9 +64,9 @@ def workflow_texts():
     return texts
 
 
-def gate_name():
-    with open(CI) as f:
-        return re.search(r"^  gate:\n(?:    .*\n)*?    name: (.+)$", f.read(), re.M).group(1)
+def job_name(workflow, job):
+    with open(os.path.join(WORKFLOWS, workflow)) as f:
+        return re.search(rf"^  {job}:\n(?:    .*\n)*?    name: (.+)$", f.read(), re.M).group(1)
 
 
 class RepositoryWiringTest(unittest.TestCase):
@@ -109,9 +109,12 @@ class RepositoryWiringTest(unittest.TestCase):
         self.assertEqual(unallowed_actions(text, ["oven-sh/setup-bun@*"]), [])
         self.assertEqual(unallowed_actions(text, ["oven-sh/other@*"]), [f"oven-sh/setup-bun@{sha}"])
 
-    def test_main_requires_the_ci_gate_from_github_actions(self):
+    def test_main_requires_the_ci_gate_and_the_title_check_from_github_actions(self):
         required = next(r for r in ruleset("main")["rules"] if r["type"] == "required_status_checks")
-        self.assertEqual(required["parameters"]["required_status_checks"], [{"context": gate_name(), "integration_id": ACTIONS_APP_ID}])
+        self.assertEqual(
+            required["parameters"]["required_status_checks"],
+            [{"context": name, "integration_id": ACTIONS_APP_ID} for name in (job_name("pstack-ci.yml", "gate"), job_name("pstack-pr.yml", "title"))],
+        )
 
     def test_only_merge_commits_are_allowed(self):
         settings = github_config()["settings"]

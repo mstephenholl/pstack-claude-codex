@@ -52,7 +52,7 @@ Named agents:
 
 | pstack agent | Claude Code | Codex |
 |---|---|---|
-| `poteto-agent` | `subagent_type: "poteto-agent"`. When the role's entry has an effort, use `pstack-effort-<effort>` with the Codex message opening instead. | A default agent whose message starts: "Before any work, read `~/.agents/pstack/skills/poteto-mode/SKILL.md` in full, including its Principles section." |
+| `poteto-agent` | `subagent_type: "poteto-agent"`. When the role's entry has an effort, use `pstack-effort-<effort>` with the Codex message opening instead. | A default agent whose message starts with the body of `~/.agents/pstack/agents/poteto-agent.md` |
 | `comment-sicko` | `subagent_type: "comment-sicko"` | A default agent whose message starts with the body of `~/.agents/pstack/agents/comment-sicko.md` |
 
 ## Models
@@ -138,5 +138,6 @@ For Orchestrate, Autopilot, Autonomous run, Multi-phase plan, Session pickup, an
 - Cursor automations and webhooks (`make-bot-ui`, `benny`).
 - `poteto-mode`'s `mode` and `reminder` frontmatter. Invoke `/poteto-mode` or `$poteto-mode` per task.
 - Origin. Use it only when `command -v origin` succeeds, as the playbooks say. Otherwise `gh`.
+- A built-in PR tool. Local Claude Code and Codex runs have none, and an MCP server is not one. Where a playbook says to use the run's built-in PR tool, use the resolved forge.
 - Bugbot is a GitHub app. It applies only where the repo has it installed.
 - `scripts/watch-pr` and `scripts/orch` need `bun`. Their first run installs dependencies, which needs network. Without `bun`, read PR state with `gh pr view --json` and `gh pr checks`, and keep the orchestrate ledger as a TSV by hand.

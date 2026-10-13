@@ -51,7 +51,7 @@ GH_REPO=<owner>/<repo> gh pr create --title "chore(upstream): merge cursor/plugi
 GH_REPO=<owner>/<repo> gh pr merge --merge
 ```
 
-Expect manual conflicts in the files the port rewrote or edited beyond the pointer: `setup-pstack`, `no-comments`, `poteto-mode` (frontmatter name), the `bug-fix` playbook, the three `reflect` reviewer prompts, `worktree-audit.sh`, and the two agent files.
+Expect manual conflicts in the files the port rewrote or edited beyond the pointer: `setup-pstack`, `poteto-mode` (frontmatter name), the `bug-fix` playbook, the three `reflect` reviewer prompts, `worktree-audit.sh`, and the `poteto-agent` agent file.
 
 ## Port a new skill
 
@@ -185,4 +185,4 @@ To remove a tag pushed by mistake, an admin disables the `release tags` ruleset 
 - **Foreign seats.** Panels (`arena`, `architect`, `interrogate`) and `reflect`'s tooling lens seat the other harness through its CLI. In Codex, `claude` runs outside the sandbox, so Codex asks for escalation. With `approvals_reviewer = "auto_review"`, the reviewer may deny a seat that would send a session transcript to the other vendor. The seat is then reported as blocked and the run finishes without it. To keep code and transcripts inside the harness you run, put `foreign seats: off` in `~/.agents/pstack-models.md`, or answer `off` in `/setup-pstack`. Every role then runs natively, and each panel seats two native models so it still gets two reviewers.
 - **Claude Code prompts** before writing under `.claude/`, for example when `create-verification-skill` links `.claude/skills/verify-<app>`.
 - **Read permissions.** `pstack install --claude-read-rules` adds allow rules for `Read(~/.agents/pstack/**)`, `Read(<your clone>/**)`, and `Read(~/.claude/skills/**)` to `~/.claude/settings.json`, so Claude Code stops asking before it reads skill files. An allow rule for a symlinked path must match both the link and its target.
-- **Not ported:** `make-bot-ui` and the `benny` automation pack depend on Cursor automations. `automate-me` and the verification skills are ported but interactive, so the smoke test does not cover `automate-me` or `maintain-verification-skill`.
+- **Not ported:** `make-bot-ui` and the `benny` automation pack depend on Cursor automations. `poteto-help` explains Cursor's install, modes, and UI, so it is dropped on every sync. So is upstream's `plugin.json` manifest, which names upstream's version and repository. `automate-me` and the verification skills are ported but interactive, so the smoke test does not cover `automate-me` or `maintain-verification-skill`.

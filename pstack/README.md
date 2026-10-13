@@ -57,6 +57,7 @@ For anything that needs rigor, start with `poteto-mode`. It matches the task to 
 | | `recall` | Catching up on recent work from your Claude Code and Codex sessions. |
 | | `blast-radius` | What a change could break outside the diff. |
 | | `bro` | The last message again, in plain language. |
+| | `ketchup` | Everything in the chat since your last message, with each decision you need to make. |
 | Design and review | `architect` | Types and module shape before code, from competing sketches. |
 | | `arena` | Several candidates for the same task, merged into the best one. |
 | | `interrogate` | Adversarial review of a diff by a panel of models. |
@@ -71,10 +72,12 @@ For anything that needs rigor, start with `poteto-mode`. It matches the task to 
 | | `maintain-verification-skill` | Keeping that skill accurate as the app changes. |
 | | `control-ui`, `control-cli` | Driving a browser or Electron UI, or a CLI or TUI, to capture evidence. |
 | | `show-me-your-work` | A decision log for long or unattended runs. |
+| | `benchmark-checklist` | Vetting a performance number before you report or act on it. |
 | Improve your setup | `reflect` | Turning lessons from a session into skill edits. |
 | | `automate-me` | A personal `<name>-mode` skill drafted from how you work. |
+| | `correct` | Making the mistakes agents keep repeating in your repo impossible, starting with architecture and types. |
 | | `setup-pstack` | Models and reasoning budget. |
-| Principles | `principle-*` | 23 engineering principles that `poteto-mode` reads as needed. You can also invoke them directly. |
+| Principles | `principle-*` | 24 engineering principles that `poteto-mode` reads as needed. You can also invoke them directly. |
 
 ## Models
 
@@ -90,7 +93,7 @@ Claude Code's `Agent` tool cannot set reasoning effort per spawn, so `install.sh
 - There are no cloud agents. Every worker runs locally, and a worker that writes gets its own git worktree. The Orchestrate and Autopilot playbooks run on one supervised machine.
 - `recall`, `reflect`, `automate-me`, and `show-me-your-work` read Claude Code and Codex session logs through `port/transcripts.py`.
 - The `comment-sicko` and `poteto-agent` agents are Claude Code agents. Codex starts a default agent with their instructions.
-- Not ported: `make-bot-ui` and the `benny` automations need Cursor automations. Cursor's setup guide is not included.
+- Not ported: `make-bot-ui` and the `benny` automations need Cursor automations. `poteto-help` and Cursor's setup guide describe Cursor's install, modes, and UI, so they are not included. Use `pstack doctor` and this README instead.
 
 ## Update and uninstall
 

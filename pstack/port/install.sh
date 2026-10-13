@@ -18,12 +18,15 @@ SKILLS=(
   architect
   arena
   automate-me
+  benchmark-checklist
   blast-radius
   bro
+  correct
   create-verification-skill
   figure-it-out
   how
   interrogate
+  ketchup
   maintain-verification-skill
   no-comments
   poteto-mode
@@ -44,6 +47,7 @@ SKILLS=(
   principle-encode-lessons-in-structure
   principle-exhaust-the-design-space
   principle-experience-first
+  principle-explain-the-number
   principle-fix-root-causes
   principle-foundational-thinking
   principle-guard-the-context-window

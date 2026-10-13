@@ -17,7 +17,7 @@ Run `~/.agents/pstack/port/pstack configure --dry-run --json --yes`. It reports 
 
 Use your harness's question tool, and name the current value of each.
 
-- Budget, with these labels: `unlimited — keep max`, `large — xhigh reasoning`, `medium — high reasoning`, `small — medium reasoning`. They map to `--budget unlimited|large|medium|small`.
+- Budget, with these labels: `unlimited — max reasoning`, `large — xhigh reasoning`, `medium — high reasoning`, `small — medium reasoning`. They map to `--budget unlimited|large|medium|small`.
 - Foreign seats. A foreign seat runs a role on the other harness through its CLI, which sends code or the session transcript to that vendor. Offer `on — panels and reflect's tooling lens mix Claude and OpenAI models` and `off — everything stays in the harness you run it in`. With `off`, each panel seats two native models so it still gets two reviewers.
 
 ### 3. Preview and confirm

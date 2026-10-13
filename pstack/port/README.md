@@ -51,7 +51,7 @@ GH_REPO=<owner>/<repo> gh pr create --title "chore(upstream): merge cursor/plugi
 GH_REPO=<owner>/<repo> gh pr merge --merge
 ```
 
-Expect manual conflicts in the files the port rewrote or edited beyond the pointer: `setup-pstack`, `no-comments`, `poteto-mode` (frontmatter name), the `bug-fix` playbook, the three `reflect` reviewer prompts, `worktree-audit.sh`, and the two agent files.
+Expect manual conflicts in the files the port rewrote or edited beyond the pointer: `setup-pstack`, `poteto-mode` (frontmatter name), the `bug-fix` playbook, the three `reflect` reviewer prompts, `worktree-audit.sh`, and the `poteto-agent` agent file.
 
 ## Port a new skill
 

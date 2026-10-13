@@ -18,7 +18,9 @@
 
 --report writes the outcome as JSON for CI: status (up_to_date, merged,
 or conflicts), the incoming commit, and what was dropped, resolved, left
-for a person, and needs porting.
+for a person, and needs porting. When upstream changed only paths the port
+drops or keeps its own copy of, the merge would change nothing, so the
+script aborts it and reports up_to_date.
 
 It never commits. Finish the merge yourself, then run port/install.sh and
 port/smoke/smoke.py.
@@ -213,14 +215,19 @@ def main():
         for item in report:
             print(f"- {item}")
 
+    unchanged = not manual and not git(repo, "status", "--porcelain", "--untracked-files=no").strip()
     write_report(
-        status="conflicts" if manual else "merged",
+        status="conflicts" if manual else "up_to_date" if unchanged else "merged",
         incoming=git(repo, "rev-parse", incoming).strip(),
         dropped=dropped,
         resolved=resolved,
         manual=manual,
         to_port=report,
     )
+    if unchanged:
+        git(repo, "merge", "--abort")
+        print("\nupstream changes nothing the port keeps, so there is nothing to merge")
+        return
     print("\nnext: " + ("resolve the conflicts above, then " if manual else "") + "review with `git diff --cached`, commit the merge, run port/install.sh, and run port/smoke/smoke.py.")
     sys.exit(1 if manual else 0)
 

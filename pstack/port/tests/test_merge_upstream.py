@@ -159,7 +159,7 @@ class MergeTest(unittest.TestCase):
             "advisor/README.md": "advisor v2\n",
         })
         code, report, out = self.merge()
-        self.assertEqual((code, report["status"], report["manual"]), (0, "merged", []), out)
+        self.assertEqual((code, report["status"], report["manual"]), (0, "up_to_date", []), out)
         for path, ours in {".github/dependabot.yml": DEPENDABOT_OURS, ".github/SECURITY.md": "# Security policy\n"}.items():
             with open(os.path.join(self.fork, path)) as f:
                 self.assertEqual(f.read(), ours, path)
@@ -170,11 +170,18 @@ class MergeTest(unittest.TestCase):
             ".github/dependabot.yml": DEPENDABOT_UPSTREAM.replace("# Shared end.", "# Shared end, edited upstream."),
         })
         code, report, out = self.merge()
-        self.assertEqual((code, report["status"], report["manual"]), (0, "merged", []), out)
+        self.assertEqual((code, report["status"], report["manual"]), (0, "up_to_date", []), out)
         for path, ours in {"README.md": README_OURS, ".github/dependabot.yml": DEPENDABOT_OURS}.items():
             with open(os.path.join(self.fork, path)) as f:
                 self.assertEqual(f.read(), ours, path)
-        self.assertEqual(git(self.fork, "diff", "--cached", "--name-only", "HEAD").split(), [])
+        self.assertFalse(merge_upstream.merge_head(self.fork), "no empty merge left in progress")
+
+    def test_an_upstream_change_outside_the_port_leaves_nothing_to_merge(self):
+        self.upstream_commit({"advisor/README.md": "advisor v2\n", "greenhouse/README.md": "new plugin\n"})
+        code, report, out = self.merge()
+        self.assertEqual((code, report["status"], report["dropped"]), (0, "up_to_date", 2), out)
+        self.assertFalse(merge_upstream.merge_head(self.fork), "no empty merge left in progress")
+        self.assertEqual(git(self.fork, "status", "--porcelain"), "")
 
     def test_a_merge_git_refuses_fails_loudly(self):
         git(self.fork, "config", "--unset", "user.name")

@@ -449,9 +449,12 @@ def run_claude(prompt, repo, log, resume=None, mode="acceptEdits"):
     log.write(proc.stdout + proc.stderr)
     try:
         out = json.loads(proc.stdout)
-        return out.get("session_id"), out.get("result", "")
     except ValueError:
         return None, ""
+    # With `verbose` on in the user's settings, json output is every message, ending with the result.
+    if isinstance(out, list):
+        out = next((m for m in reversed(out) if m.get("type") == "result"), {})
+    return out.get("session_id"), out.get("result", "")
 
 
 def run_codex(prompt, repo, log, resume=None, mode=None):

@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import tempfile
+import types
 import unittest
 from unittest import mock
 
@@ -42,6 +43,22 @@ class RunClaudeTest(unittest.TestCase):
     def test_reads_the_result_when_verbose_prints_every_message(self):
         messages = [{"type": "system", "subtype": "init", "session_id": "s1"}, {"type": "assistant", "message": {"content": []}}, RESULT]
         self.assertEqual(self.run_claude(messages), ("s1", "the answer"))
+
+
+class AnswerCheckTest(unittest.TestCase):
+    def finds_stale_cache_bug(self, answer):
+        return smoke.SCENARIOS["interrogate"]["checks"][-1](types.SimpleNamespace(answer=answer))[0]
+
+    def test_interrogate_accepts_any_wording_of_the_stale_cache_bug(self):
+        for answer in (
+            "`update_user` never clears the cache entry. Later reads through the cache still return the old record.",
+            "Reads after a write return stale data.",
+            "The cache is never invalidated on write.",
+        ):
+            self.assertTrue(self.finds_stale_cache_bug(answer), answer)
+
+    def test_interrogate_rejects_an_answer_that_misses_the_bug(self):
+        self.assertFalse(self.finds_stale_cache_bug("A CLI typo exits 0, and a failed save empties users.json."))
 
 
 if __name__ == "__main__":

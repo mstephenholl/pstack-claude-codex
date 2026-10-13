@@ -372,7 +372,7 @@ SCENARIOS = {
     "interrogate": dict(
         skill="interrogate",
         task="Interrogate the feat branch diff against main. Intent: add update_user next to the cached get_user, and a CLI over it.",
-        checks=[read_harness, read_models, spawned("judgment"), foreign_seat(), panel_seats, answer_matches(r"stale|invalidat", "finds the stale-cache bug")],
+        checks=[read_harness, read_models, spawned("judgment"), foreign_seat(), panel_seats, answer_matches(r"stale|invalidat|old (?:record|value|data)|clear\w* (?:the |its )?cache", "finds the stale-cache bug")],
     ),
     "arena": dict(
         skill="arena",

@@ -191,14 +191,27 @@ class CliTest(Env):
         settings = os.path.join(self.home, ".claude", "settings.json")
         os.makedirs(os.path.dirname(settings))
         with open(settings, "w") as f:
-            json.dump({"model": "opus", "permissions": {"allow": ["Bash(ls:*)"]}}, f)
+            json.dump({"model": "opus", "permissions": {"allow": ["Bash(ls:*)", f"Read({ROOT}/**)"]}}, f)
         self.pstack("install", "--claude-read-rules")
         with open(settings) as f:
             data = json.load(f)
         self.assertEqual(data["model"], "opus")
-        self.assertEqual(data["permissions"]["allow"][0], "Bash(ls:*)")
-        self.assertIn("Read(~/.agents/pstack/**)", data["permissions"]["allow"])
-        self.assertIn(f"Read({ROOT}/**)", data["permissions"]["allow"])
+        self.assertEqual(data["permissions"]["allow"], [
+            "Bash(ls:*)",
+            "Read(~/.agents/pstack/**)",
+            "Read(~/.agents/pstack-models.md)",
+            "Read(~/.claude/skills/**)",
+            f"Read(/{ROOT}/**)",
+        ])
+
+    def test_doctor_flags_read_rules_that_never_matched(self):
+        self.fake_installed("claude")
+        self.pstack("install")
+        with open(os.path.join(self.home, ".claude", "settings.json"), "w") as f:
+            json.dump({"permissions": {"allow": ["Read(~/.agents/pstack/**)", "Read(~/.claude/skills/**)", f"Read({ROOT}/**)"]}}, f)
+        self.assertIn("Claude Code will ask before reading pstack's files", self.pstack("doctor", "--offline").stdout)
+        self.pstack("install", "--claude-read-rules")
+        self.assertNotIn("Claude Code will ask before reading pstack's files", self.pstack("doctor", "--offline").stdout)
 
     def test_uninstall_removes_everything_it_made(self):
         self.pstack("install")

@@ -372,7 +372,7 @@ SCENARIOS = {
     "interrogate": dict(
         skill="interrogate",
         task="Interrogate the feat branch diff against main. Intent: add update_user next to the cached get_user, and a CLI over it.",
-        checks=[read_harness, read_models, spawned("judgment"), foreign_seat(), panel_seats, answer_matches(r"stale|invalidat", "finds the stale-cache bug")],
+        checks=[read_harness, read_models, spawned("judgment"), foreign_seat(), panel_seats, answer_matches(r"stale|invalidat|old (?:record|value|data)|clear\w* (?:the |its )?cache", "finds the stale-cache bug")],
     ),
     "arena": dict(
         skill="arena",
@@ -449,9 +449,12 @@ def run_claude(prompt, repo, log, resume=None, mode="acceptEdits"):
     log.write(proc.stdout + proc.stderr)
     try:
         out = json.loads(proc.stdout)
-        return out.get("session_id"), out.get("result", "")
     except ValueError:
         return None, ""
+    # With `verbose` on in the user's settings, json output is every message, ending with the result.
+    if isinstance(out, list):
+        out = next((m for m in reversed(out) if m.get("type") == "result"), {})
+    return out.get("session_id"), out.get("result", "")
 
 
 def run_codex(prompt, repo, log, resume=None, mode=None):

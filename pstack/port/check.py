@@ -31,7 +31,7 @@ CURSOR_TERMS = [
     (r"(?<!~/)\.cursor/skills", r"`\.cursor/skills/<name>/`", "project .cursor/skills paths"),
     (r"~/\.cursor/skills", r"`~/\.cursor/skills/<name>/`", "personal ~/.cursor/skills paths"),
     (r"agent-transcripts|\.cursor/projects", r"agent-transcripts/", "Cursor transcripts"),
-    (r"grok-\d|gpt-5\.6-sol-max|claude-opus-5-5-max|xhigh-fast", r"Cursor slugs", "Cursor model slugs"),
+    (r"grok-\d|gpt-5\.6-sol-max|claude-opus-5-5-(max|xhigh)|xhigh-fast", r"Cursor slugs", "Cursor model slugs"),
     (r"cursor-team-kit", r"`cursor-team-kit`", "cursor-team-kit skills"),
     (r"`create-skill`|\bcreate-skill\b", r"`create-skill`", "Cursor's create-skill"),
     (r"environment: \"cloud\"|cloud_base_branch", r"`environment: \"cloud\"`", "cloud workers"),

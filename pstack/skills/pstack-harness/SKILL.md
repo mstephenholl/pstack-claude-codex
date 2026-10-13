@@ -45,7 +45,7 @@ Most pstack skills are user-only, so they are hidden from you and the `Skill` to
 | `AskQuestion` | `AskUserQuestion` | `request_user_input` when available, else ask in plain text |
 | An approval gate with no human present (`claude -p`, `codex exec`) | Put the pending choices in the final message and stop. Take no gated or "automatic" outside action, such as filing to a tracker. | Same |
 | todolist | Your task or todo tool | `update_plan` |
-| `/loop` | The `loop` skill (`/loop 30m <tick prompt>`), or `Monitor` for an event | See the tick rule under Long runs |
+| `/loop` | The `loop` skill (`/loop 1h <tick prompt>`), or `Monitor` for an event | See the tick rule under Long runs |
 | MCP discovery (the `mcps/` directory) | MCP tools are named `mcp__<server>__<tool>`. Search deferred tools too. | `codex mcp list`, plus the MCP tools in your tool list |
 
 Named agents:
@@ -57,7 +57,7 @@ Named agents:
 
 ## Models
 
-Skill text names Cursor slugs (`grok-4.7-xhigh-fast`, `gpt-5.6-sol-max`, `claude-opus-5-5-max`) as defaults. Ignore them. Resolve every role from `~/.agents/pstack-models.md`, and use the table below when the file or the role's line is missing.
+Skill text names Cursor slugs (`grok-4.7-xhigh-fast`, `claude-opus-5-5-xhigh`) as defaults. Ignore them. Resolve every role from `~/.agents/pstack-models.md`, and use the table below when the file or the role's line is missing.
 
 An entry is `<harness>:<model>[@<effort>]`, where harness is `claude` or `codex`, or `inherit-parent` (also written `auto`), which means a native subagent on your own model. An entry is native when its harness is yours and foreign otherwise.
 
@@ -121,7 +121,7 @@ For Orchestrate, Autopilot, Autonomous run, Multi-phase plan, Session pickup, an
 - **Resume an agent.** Claude Code: `SendMessage` to its id or name, a deferred tool you load first. Codex: `send_message` to a running agent, `followup_task` for more work. Either one restarts an idle agent, so never resume one just to check on it.
 - **Check on an agent.** Claude Code has no agent list. Record each id from the spawn result in the unit's row, then probe side effects: `git -C <worktree> log -1`, `gh pr view`. No notification and no side effect past the expected runtime means stuck. Codex: `list_agents`, or `wait_agent` with a short `timeout_ms`.
 - **Stop an agent.** Claude Code: `TaskStop` on its task id. Codex: `interrupt_agent`. For a hold, stop it, write the stop in the standing orders, and respawn from the brief and branch on release. The worktree survives.
-- **The 30-minute tick.** Claude Code: `/loop 30m <tick prompt>`. Codex: with agents in flight, `wait_agent` with a 30-minute `timeout_ms`, which returns early on a completion. With none in flight, `sleep 1800` with the command timeout set above it. Both harnesses have `/goal <condition>`, which keeps the thread working across turns until the condition holds.
+- **The hourly tick.** Claude Code: `/loop 1h <tick prompt>`. Codex: with agents in flight, `wait_agent` with a one-hour `timeout_ms`, which returns early on a completion. With none in flight, `sleep 3600` with the command timeout set above it. A plan keeps the literal `/loop 1h` line in Codex too, since `check-plan.mjs` requires it.
 - **Waiting on CI inside a subagent.** `gh pr checks <pr> --watch`. In Claude Code, run it with `run_in_background` or through `Monitor`, since foreground `sleep` is blocked.
 - **Reader and verifier lanes.** A lane that checks out a SHA gets its own detached worktree, `git worktree add --detach /tmp/swarm-<pr>/wt-<n> <sha>`, with its own port and browser profile. Remove it when done. Never `git checkout` in the shared checkout.
 - **Trunk copies of pstack.** A plan line like `git show origin/main:pstack/skills/<path>` assumes pstack lives in the repo you are working on. It does not here. Read `~/.agents/pstack/skills/<path>` from disk and keep the literal line in plans, since `check-plan.mjs` requires it. Run that checker as `node ~/.agents/pstack/skills/poteto-mode/scripts/check-plan.mjs <plan.md>`.

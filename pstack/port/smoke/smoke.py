@@ -233,7 +233,7 @@ def read_models(ev):
 
 def no_cursor_slugs(ev):
     spawns = r"Agent|Bash|(collaboration\.)?spawn_agent|exec|shell"
-    used = ev.called(r"grok-4|gpt-5\.6-sol-max|claude-opus-5-5-max|xhigh-fast", name=spawns)
+    used = ev.called(r"grok-4|gpt-5\.6-sol-max|claude-opus-5-5-(max|xhigh)|xhigh-fast", name=spawns)
     return not used, "used no Cursor model slug"
 
 

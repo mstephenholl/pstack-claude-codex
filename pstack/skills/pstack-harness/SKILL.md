@@ -138,6 +138,6 @@ For Orchestrate, Autopilot, Autonomous run, Multi-phase plan, Session pickup, an
 - Cursor automations and webhooks (`make-bot-ui`, `benny`).
 - `poteto-mode`'s `mode` and `reminder` frontmatter. Invoke `/poteto-mode` or `$poteto-mode` per task.
 - Origin. Use it only when `command -v origin` succeeds, as the playbooks say. Otherwise `gh`.
-- A built-in PR tool. Local Claude Code and Codex runs have none, and an MCP server is not one. Where a playbook says to use the run's built-in PR tool, use the resolved forge.
+- A built-in PR tool. An MCP server is not one. Where a playbook says to use the run's built-in PR tool, use the resolved forge.
 - Bugbot is a GitHub app. It applies only where the repo has it installed.
 - `scripts/watch-pr` and `scripts/orch` need `bun`. Their first run installs dependencies, which needs network. Without `bun`, read PR state with `gh pr view --json` and `gh pr checks`, and keep the orchestrate ledger as a TSV by hand.

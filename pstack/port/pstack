@@ -57,7 +57,7 @@ ROLES = [
     ("interrogate reviewers", "panel"),
 ]
 ROLE_NAMES = [r for r, _ in ROLES]
-READ_RULES = ["Read(~/.agents/pstack/**)", "Read(~/.claude/skills/**)"]
+READ_RULES = ["Read(~/.agents/pstack/**)", "Read(~/.agents/pstack-models.md)", "Read(~/.claude/skills/**)"]
 
 
 def fail(message, code=1):
@@ -296,6 +296,11 @@ def inside_agents_skills():
     return os.path.realpath(ROOT) == skills or os.path.realpath(ROOT).startswith(skills + os.sep)
 
 
+def claude_read_rules():
+    # Claude Code reads a rule path with one leading slash as relative to the settings file, so an absolute path needs two.
+    return READ_RULES + [f"Read(/{ROOT}/**)"]
+
+
 def add_claude_read_rules():
     path = os.path.join(HOME, ".claude", "settings.json")
     settings = {}
@@ -306,10 +311,10 @@ def add_claude_read_rules():
         except ValueError:
             fail(f"{path} is not valid JSON; fix it before adding rules")
     allow = settings.setdefault("permissions", {}).setdefault("allow", [])
-    rules = READ_RULES + [f"Read({ROOT}/**)"]
-    added = [r for r in rules if r not in allow]
-    if added:
-        allow.extend(added)
+    stale = f"Read({ROOT}/**)"  # what older releases wrote; it never matched
+    added = [r for r in claude_read_rules() if r not in allow]
+    if added or stale in allow:
+        allow[:] = [r for r in allow if r != stale] + added
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
             json.dump(settings, f, indent=2)
@@ -494,7 +499,7 @@ def cmd_doctor(args):
                 allow = json.load(f).get("permissions", {}).get("allow", [])
         except (OSError, ValueError):
             allow = []
-        if not all(r in allow for r in READ_RULES):
+        if not all(r in allow for r in claude_read_rules()):
             note("warn", "Claude Code will ask before reading pstack's files", "run `pstack install --claude-read-rules`")
     for tool, why in (("gh", "the PR playbooks"), ("bun", "the Babysit and Orchestrate helper scripts")):
         if not shutil.which(tool):

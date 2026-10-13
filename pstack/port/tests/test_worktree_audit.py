@@ -98,9 +98,11 @@ class WorktreeAuditTest(unittest.TestCase):
         os.chmod(path, 0o755)
 
     def audit(self):
-        proc = subprocess.run([SCRIPT], cwd=self.repo, env=self.env, capture_output=True, text=True)
+        proc = subprocess.run([SCRIPT, "-b", "HEAD"], cwd=self.repo, env=self.env, capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        header, *rows = (line.split("\t") for line in proc.stdout.splitlines())
+        base, *lines = proc.stdout.splitlines()
+        self.assertEqual(base, "# base: HEAD")
+        header, *rows = (line.split("\t") for line in lines)
         self.assertEqual(len(rows), 1, proc.stdout)
         return dict(zip(header, rows[0]))
 

@@ -42,7 +42,7 @@ class RulesTest(unittest.TestCase):
             self.assertTrue(merge_upstream.kept(path), path)
         for path in ["advisor/README.md", "pstack/automations/benny/README.md", "pstack/skills/make-bot-ui/SKILL.md",
                      "pstack/skills/poteto-help/SKILL.md", "pstack/skills/poteto-help/references/recipes.md",
-                     "pstack/.cursor-plugin/plugin.json", "cursor-team-kit/skills/fix-ci/SKILL.md", ".github/workflows/validate-plugins.yml",
+                     "pstack/.cursor-plugin/plugin.json", "pstack/plugin.json", "cursor-team-kit/skills/fix-ci/SKILL.md", ".github/workflows/validate-plugins.yml",
                      ".github/CODEOWNERS", ".github/dependabot.yaml", ".github/SECURITY.md.orig", ".github/dependabot.yml/x"]:
             self.assertFalse(merge_upstream.kept(path), path)
 

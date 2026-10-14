@@ -57,7 +57,8 @@ For anything that needs rigor, start with `poteto-mode`. It matches the task to 
 | | `recall` | Catching up on recent work from your Claude Code and Codex sessions. |
 | | `blast-radius` | What a change could break outside the diff. |
 | | `bro` | The last message again, in plain language. |
-| | `ketchup` | Everything in the chat since your last message, with each decision you need to make. |
+| | `ketchup` | What changed in the chat since your last message, briefly, with each decision you need to make. |
+| | `in-your-own-words` | Your goal and the problem played back before the agent starts. |
 | Design and review | `architect` | Types and module shape before code, from competing sketches. |
 | | `arena` | Several candidates for the same task, merged into the best one. |
 | | `interrogate` | Adversarial review of a diff by a panel of models. |

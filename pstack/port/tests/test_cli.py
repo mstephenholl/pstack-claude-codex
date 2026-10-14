@@ -292,6 +292,25 @@ class ReleaseTest(Env):
         self.pstack("update", "--head", script=script)
         self.assertEqual(git(clone, "log", "-1", "--format=%s").strip(), "unreleased work")
 
+    def test_update_finishes_with_the_new_release_code(self):
+        src = os.path.join(self.tmp, "src")
+        script = os.path.join(src, "pstack", "port", "pstack")
+        with open(script) as f:
+            text = f.read()
+        with open(script, "w") as f:
+            f.write(text.replace("def cmd_doctor(args):\n", "def cmd_doctor(args):\n    print(\"doctor from v0.3.0\")\n", 1))
+        git(src, "commit", "-qam", "third release")
+        git(src, "tag", "v0.3.0")
+        git(src, "push", "-q", self.remote, "main", "v0.3.0")
+        clone = os.path.join(self.tmp, "clone")
+        git(self.tmp, "clone", "-q", self.remote, clone)
+        git(clone, "checkout", "-q", "v0.2.0")
+        script = os.path.join(clone, "pstack", "port", "pstack")
+        self.pstack("install", script=script)
+        out = self.pstack("update", script=script).stdout
+        self.assertIn("v0.2.0 -> v0.3.0", out)
+        self.assertIn("doctor from v0.3.0", out)
+
     def test_update_ignores_tags_that_are_not_plain_vX_Y_Z(self):
         self.tag_stray_names_on_the_tip()
         clone = os.path.join(self.tmp, "clone")

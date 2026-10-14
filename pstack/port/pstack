@@ -48,7 +48,7 @@ ROLES = [
     ("how explainer", "judgment"),
     ("why investigators", "code"),
     ("why synthesizer", "judgment"),
-    ("reflect tooling", "judgment"),
+    ("reflect tooling", "code"),
     ("reflect judgment, divergent, synthesizer", "judgment"),
     ("arena runners", "panel"),
     ("arena cross-judge pool", "judgment"),

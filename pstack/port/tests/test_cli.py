@@ -87,6 +87,11 @@ class CliTest(Env):
         self.pstack("configure", "--budget", "large", "--foreign-seats", "off", "--yes")
         self.assertEqual(self.models_file()["interrogate reviewers"], "codex:gpt-6-astra@xhigh, codex:gpt-6.1-sol@medium")
 
+    def test_reflect_tooling_runs_on_the_code_model(self):
+        self.pstack("install", "--codex")
+        self.pstack("configure", "--budget", "large", "--foreign-seats", "off", "--yes")
+        self.assertEqual(self.models_file()["reflect tooling"], "codex:gpt-6.1-sol@medium")
+
     def test_install_with_only_claude_installed_skips_codex(self):
         self.fake_installed("claude")
         self.assertIn("installed for claude.", self.pstack("install").stdout)

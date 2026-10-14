@@ -25,6 +25,7 @@ SKILLS=(
   create-verification-skill
   figure-it-out
   how
+  in-your-own-words
   interrogate
   ketchup
   maintain-verification-skill

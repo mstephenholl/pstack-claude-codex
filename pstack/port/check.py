@@ -36,6 +36,7 @@ CURSOR_TERMS = [
     (r"`create-skill`|\bcreate-skill\b", r"`create-skill`", "Cursor's create-skill"),
     (r"environment: \"cloud\"|cloud_base_branch", r"`environment: \"cloud\"`", "cloud workers"),
     (r"`/loop`|Cursor's `/loop`", r"`/loop`", "Cursor's /loop"),
+    (r"`/visualize`", r"`/visualize`", "Cursor's /visualize"),
     (r"\bmcps/", r"`mcps/`", "MCP discovery"),
     (r"generalPurpose", r"`subagent_type: generalPurpose`", "the generalPurpose subagent"),
     (r"`readonly`|readonly: true", r"`readonly: true`", "readonly subagents"),

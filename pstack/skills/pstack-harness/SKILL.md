@@ -46,6 +46,7 @@ Most pstack skills are user-only, so they are hidden from you and the `Skill` to
 | An approval gate with no human present (`claude -p`, `codex exec`) | Put the pending choices in the final message and stop. Take no gated or "automatic" outside action, such as filing to a tracker. | Same |
 | todolist | Your task or todo tool | `update_plan` |
 | `/loop` | The `loop` skill (`/loop 1h <tick prompt>`), or `Monitor` for an event | See the tick rule under Long runs |
+| `/visualize` | A Mermaid diagram, or a chart image you render with a short script and give by path | A Mermaid diagram, or a chart image you render with a short script and give by path |
 | MCP discovery (the `mcps/` directory) | MCP tools are named `mcp__<server>__<tool>`. Search deferred tools too. | `codex mcp list`, plus the MCP tools in your tool list |
 
 Named agents:
@@ -136,7 +137,6 @@ For Orchestrate, Autopilot, Autonomous run, Multi-phase plan, Session pickup, an
 - A Cursor cloud-agent URL in Session pickup. Only its pushed branch or PR can be picked up.
 - Unattended multi-day programs at the scale of hundreds of agents. Shrink the program to what one supervised machine can run.
 - Cursor automations and webhooks (`make-bot-ui`, `benny`).
-- `poteto-mode`'s `mode` and `reminder` frontmatter. Invoke `/poteto-mode` or `$poteto-mode` per task.
 - Origin. Use it only when `command -v origin` succeeds, as the playbooks say. Otherwise `gh`.
 - A built-in PR tool. An MCP server is not one. Where a playbook says to use the run's built-in PR tool, use the resolved forge.
 - Bugbot is a GitHub app. It applies only where the repo has it installed.

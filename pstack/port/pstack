@@ -566,14 +566,13 @@ def latest_release_tag(fetch=True, remote_check=False):
     return max(tags, key=version_key) if tags else None
 
 
-def cmd_update(args):
+def move_checkout(args):
     if git("status", "--porcelain", "--untracked-files=no").stdout.strip():
         fail("the clone has uncommitted changes; commit or discard them first")
     try:
         remote = update_remote()
     except NoUpdateRemote as e:
         fail(str(e))
-    before = version()
     git("fetch", "--quiet", "--tags", remote)
     # A clone on a branch follows its branch. A release checkout (detached at a
     # tag) follows releases, and never moves to a tag older than what it has.
@@ -589,6 +588,17 @@ def cmd_update(args):
         proc = git("merge", "--ff-only", "--quiet", "@{u}")
     if proc.returncode != 0:
         fail(f"update failed:\n{proc.stderr.strip()}")
+
+
+def cmd_update(args):
+    before = os.environ.pop("PSTACK_UPDATED_FROM", None)
+    if before is None:
+        before = version()
+        move_checkout(args)
+        if version() != before:
+            # This process still runs the code it started with, so finish the update in the new checkout's script.
+            sys.stdout.flush()
+            os.execve(sys.executable, [sys.executable, os.path.realpath(__file__), "update"], {**os.environ, "PSTACK_UPDATED_FROM": before})
     after = version()
     print(f"pstack {before} -> {after}" if before != after else f"pstack {after} is current")
     code = run_install(selected_harnesses())

@@ -72,8 +72,8 @@ Run a native entry as a subagent with its model and effort, as the Tools table s
 
 | Role | Default |
 |---|---|
-| `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `how explorer`, `why investigators`, `swarm workers` | `claude:sonnet, codex:gpt-6.1-sol` |
-| `judgment and prose`, `hardest tasks`, `how explainer`, `why synthesizer`, `reflect tooling`, `reflect judgment, divergent, synthesizer` | `claude:opus, codex:gpt-6-astra` |
+| `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `how explorer`, `why investigators`, `reflect tooling`, `swarm workers` | `claude:sonnet, codex:gpt-6.1-sol` |
+| `judgment and prose`, `hardest tasks`, `how explainer`, `why synthesizer`, `reflect judgment, divergent, synthesizer` | `claude:opus, codex:gpt-6-astra` |
 | `arena runners`, `architect runners`, `interrogate reviewers`, `arena cross-judge pool` | `claude:opus, codex:gpt-6-astra` |
 
 If a model is rejected, use that role's default for the same harness and say so.

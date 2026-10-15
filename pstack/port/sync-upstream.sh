@@ -4,7 +4,8 @@
 # everything, or an issue when it leaves conflicts. The scheduled workflow
 # .github/workflows/pstack-upstream-sync.yml runs it.
 #
-#   DRY_RUN=1 sync-upstream.sh   prints the pushes and GitHub writes instead of making them
+#   DRY_RUN=1 sync-upstream.sh         prints the pushes and GitHub writes instead of making them
+#   AS_ACTIONS_BOT=true sync-upstream.sh   gh acts as the Actions bot, whose pull request runs GitHub holds
 #
 # Needs git, gh (authenticated), jq, and python3. Run it from a clean checkout
 # of the port branch with full history.
@@ -60,9 +61,9 @@ status=$(jq -r .status "$work/report.json")
 echo "status: $status"
 
 body() {
-  python3 - "$work/report.json" "$1" "$GH_REPO" "$branch" <<'PY'
+  python3 - "$work/report.json" "$1" "$GH_REPO" "$branch" "${AS_ACTIONS_BOT:-false}" <<'PY'
 import json, sys
-report, kind, repo, branch = json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3], sys.argv[4]
+report, kind, repo, branch, as_bot = json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5] == "true"
 lines = [f"Upstream: cursor/plugins@{report['incoming'][:12]}", ""]
 if report.get("dropped"):
     lines.append(f"Dropped {report['dropped']} upstream paths outside the port.")
@@ -76,10 +77,12 @@ else:
     lines += ["", "Nothing needs porting."]
 if kind == "pr":
     lines += ["", "Merging records upstream progress, so the next sync only sees newer changes. "
-              "Run `pstack/port/smoke/smoke.py` before merging if a ported skill changed.",
-              "", f"CI for this branch: https://github.com/{repo}/actions/workflows/pstack-ci.yml?query=branch%3A{branch}. "
-              "GitHub holds this pull request's own runs because the Actions bot opened it, and `main` "
-              "requires their checks. Click **Approve workflows to run** to start them. The run at the link is an early result only."]
+              "Run `pstack/port/smoke/smoke.py` before merging if a ported skill changed."]
+    if as_bot:
+        lines += ["", f"CI for this branch: https://github.com/{repo}/actions/workflows/pstack-ci.yml?query=branch%3A{branch}. "
+                  "GitHub holds this pull request's own runs because the Actions bot opened it, and `main` "
+                  "requires their checks. Click **Approve workflows to run** to start them, or set `PSTACK_SYNC_TOKEN` "
+                  "so the next sync opens its pull request as you. The run at the link is an early result only."]
 else:
     lines += ["", "To resolve, create a branch from `main` and run `pstack/port/merge-upstream.py` on it. Fix the files above, "
               "commit the merge, push the branch, and open a pull request. Merge it with a merge commit (`gh pr merge --merge`), "
@@ -115,8 +118,10 @@ merged)
     write gh label create needs-porting --color d93f0b --description "Upstream changes that need porting" --force
     write gh pr edit "$branch" --add-label needs-porting
   fi
-  # A pull request opened with the workflow token does not trigger other workflows, so start CI directly.
-  write gh workflow run pstack-ci.yml --ref "$branch"
+  # GitHub holds the runs of a pull request the Actions bot pushed, so start CI directly for an early result.
+  if [[ ${AS_ACTIONS_BOT:-} == true ]]; then
+    write gh workflow run pstack-ci.yml --ref "$branch"
+  fi
   close_conflict_issue
   ;;
 conflicts)

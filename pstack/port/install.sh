@@ -36,6 +36,7 @@ SKILLS=(
   recall
   reflect
   setup-pstack
+  sharpen
   show-me-your-work
   swarm
   technical-writing

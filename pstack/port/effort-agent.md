@@ -1,6 +1,6 @@
 ---
 name: pstack-effort-{{effort}}
-description: General-purpose pstack subagent pinned to {{effort}} reasoning effort. pstack skills spawn it, passing a model, when a role in ~/.agents/pstack-models.md asks for {{effort}} effort.
+description: General-purpose pstack subagent pinned to {{effort}} reasoning effort. pstack skills spawn it, passing a model, when a subagent's job calls for {{effort}} effort.
 effort: {{effort}}
 ---
 

@@ -37,10 +37,10 @@ Most pstack skills are user-only, so they are hidden from you and the `Skill` to
 | Cursor | Claude Code | Codex |
 |---|---|---|
 | `Task` subagent | `Agent` | `spawn_agent` (`task_name`, `message`, `model`, `reasoning_effort`), then `wait_agent` |
-| `subagent_type: generalPurpose` | `general-purpose`, or `pstack-effort-<effort>` when the role's entry has an effort | The default agent type |
-| `readonly: true` | `pstack-effort-<effort>` told "read-only, do not edit files", since `Explore` cannot carry an effort. Use `Explore` only when the role's entry has no effort. | Say "read-only, do not edit files" in the message |
+| `subagent_type: generalPurpose` | `pstack-effort-<effort>` at the effort Models picks, or `general-purpose` for an `inherit-parent` entry | The default agent type |
+| `readonly: true` | `pstack-effort-<effort>` told "read-only, do not edit files", since `Explore` cannot carry an effort. Use `Explore` only for an `inherit-parent` entry. | Say "read-only, do not edit files" in the message |
 | `run_in_background: true` | Agents already run in the background and notify you when done. In a headless run (`claude -p`) the session ends with your turn, so never end a turn while an agent or background command is still running. | `spawn_agent` returns at once. Collect with `wait_agent`. |
-| `model` | `model`: `opus`, `sonnet`, `haiku`, or `fable`. The entry's effort picks the `pstack-effort-<effort>` agent type, which `port/install.sh` generates from the models file. | `model` and `reasoning_effort` |
+| `model` | `model`: `opus`, `sonnet`, `haiku`, or `fable`. The effort Models picks chooses the `pstack-effort-<effort>` agent type. `port/install.sh` generates one for each effort. | `model` and `reasoning_effort` |
 | `environment: "cloud"`, `cloud_base_branch` | No cloud workers. Run locally. A writer gets its own worktree (`isolation: "worktree"`). | No cloud workers. Run locally. Create a git worktree per writer and name it in the message. |
 | `AskQuestion` | `AskUserQuestion` | `request_user_input` when available, else ask in plain text |
 | An approval gate with no human present (`claude -p`, `codex exec`) | Put the pending choices in the final message and stop. Take no gated or "automatic" outside action, such as filing to a tracker. | Same |
@@ -53,7 +53,7 @@ Named agents:
 
 | pstack agent | Claude Code | Codex |
 |---|---|---|
-| `poteto-agent` | `subagent_type: "poteto-agent"`. When the role's entry has an effort, use `pstack-effort-<effort>` with the Codex message opening instead. | A default agent whose message starts with the body of `~/.agents/pstack/agents/poteto-agent.md` |
+| `poteto-agent` | `subagent_type: "poteto-agent"` for an `inherit-parent` entry. Otherwise use `pstack-effort-<effort>` at the effort Models picks, with the Codex message opening. | A default agent whose message starts with the body of `~/.agents/pstack/agents/poteto-agent.md` |
 | `comment-sicko` | `subagent_type: "comment-sicko"` | A default agent whose message starts with the body of `~/.agents/pstack/agents/comment-sicko.md` |
 
 ## Models
@@ -69,6 +69,8 @@ An entry is `<harness>:<model>[@<effort>]`, where harness is `claude` or `codex`
 If the file has the line `foreign seats: off`, never run a foreign entry, because a foreign seat sends code or transcripts to the other vendor. Drop every foreign entry before resolving. Panels then seat only their native entries, and the pool and `reflect tooling` take their first native entry. A role left with no native entry runs as `inherit-parent`. Without that line, foreign seats are on.
 
 Run a native entry as a subagent with its model and effort, as the Tools table says. Run a foreign entry through the other harness's CLI, below.
+
+Skills say to pick each subagent's reasoning level and fast or standard speed for the job. Here that moves only the effort. Start from the entry's effort, or `xhigh` when it has none, and move it as the skill says among `low`, `medium`, `high`, `xhigh`, and `max`. Keep the entry's harness and model. If the model does not support that effort, use the nearest one it does. A foreign seat passes the effort to its CLI. Neither harness has fast mode per subagent, so every subagent runs at standard speed. An `inherit-parent` entry stays on your own model and effort.
 
 | Role | Default |
 |---|---|

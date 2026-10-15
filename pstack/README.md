@@ -57,8 +57,9 @@ For anything that needs rigor, start with `poteto-mode`. It matches the task to 
 | | `recall` | Catching up on recent work from your Claude Code and Codex sessions. |
 | | `blast-radius` | What a change could break outside the diff. |
 | | `bro` | The last message again, in plain language. |
-| | `ketchup` | What changed in the chat since your last message, briefly, with each decision you need to make. |
+| | `ketchup` | What changed in the chat since your last message, briefly, with pictures where they help and each decision you need to make. |
 | | `in-your-own-words` | Your goal and the problem played back before the agent starts. |
+| | `sharpen` | The task sharpened before the agent starts: how an expert would approach it, what you are really after, and how much to specify. |
 | Design and review | `architect` | Types and module shape before code, from competing sketches. |
 | | `arena` | Several candidates for the same task, merged into the best one. |
 | | `interrogate` | Adversarial review of a diff by a panel of models. |
@@ -86,12 +87,13 @@ For anything that needs rigor, start with `poteto-mode`. It matches the task to 
 
 The panels in `interrogate`, `arena`, and `architect` seat one reviewer per entry. With `foreign seats: on`, a panel can seat the other vendor's model by running that harness's CLI, which sends the diff, the task, or the session transcript to that vendor. With `foreign seats: off`, everything stays in the harness you run, and each panel seats two of that harness's models instead. Change it with `/setup-pstack`.
 
-Claude Code's `Agent` tool cannot set reasoning effort per spawn, so `install.sh` generates a `pstack-effort-<level>` agent for each effort your models file uses.
+Each entry's effort is where a subagent starts. Skills raise or lower it to fit the job, but keep the entry's model. Claude Code's `Agent` tool cannot set reasoning effort per spawn, so `install.sh` generates a `pstack-effort-<level>` agent for every effort.
 
 ## Differences from Cursor's pstack
 
 - `tdd` and `teach` are renamed `pstack-tdd` and `pstack-teach` to avoid clashing with other skills of the same name.
 - There are no cloud agents. Every worker runs locally, and a worker that writes gets its own git worktree. The Orchestrate and Autopilot playbooks run on one supervised machine.
+- Subagents run at standard speed. Neither harness has fast mode per subagent, so skills that pick a subagent's reasoning level and speed change only its effort.
 - `recall`, `reflect`, `automate-me`, and `show-me-your-work` read Claude Code and Codex session logs through `port/transcripts.py`.
 - The `comment-sicko` and `poteto-agent` agents are Claude Code agents. Codex starts a default agent with their instructions.
 - Not ported: `make-bot-ui` and the `benny` automations need Cursor automations. `poteto-help` and Cursor's setup guide describe Cursor's install, modes, and UI, so they are not included. Use `pstack doctor` and this README instead.

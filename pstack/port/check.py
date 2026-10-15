@@ -48,6 +48,7 @@ CURSOR_TERMS = [
     (r"Comment Sicko|comment-sicko", r"comment-sicko", "the Comment Sicko agent"),
     (r"poteto-agent", r"`poteto-agent`", "the poteto-agent agent"),
     (r"Cursor'?s? built-in", r"Cursor('s)? built-in", "Cursor built-ins"),
+    (r"fast or standard speed|\bfast mode\b", r"fast mode per subagent", "Cursor's per-subagent speed"),
 ]
 UNCOVERED_CURSOR = re.compile(r"\bCursor\b|\.cursor\b")
 TRANSCRIPT_TERMS = re.compile(r"agent-transcripts")

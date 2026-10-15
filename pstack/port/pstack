@@ -469,13 +469,10 @@ def cmd_doctor(args):
         note("warn", f"no models file at {MODELS}; skills use pstack-harness's defaults", "run `pstack configure`")
     else:
         note("ok", f"models file: budget {config['budget'] or 'unrecorded'}, foreign seats {config['foreign_seats'] or 'on (default)'}")
-        wanted = set()
         for role, entries in config["roles"].items():
             for e in entries:
                 if e["harness"] is None or e["harness"] not in harnesses:
                     continue
-                if e["harness"] == "claude" and e["effort"]:
-                    wanted.add(e["effort"])
                 models = detected.get(e["harness"], {}).get("models", {})
                 if detected.get(e["harness"], {}).get("cli") and e["model"] not in models:
                     note("error", f"{role}: {format_entry(e)} is not an available model", f"run `pstack configure --set \"{role}=...\"`")
@@ -487,13 +484,12 @@ def cmd_doctor(args):
             note("error", f"the models file has a bad line: {problem}", "fix it, or rerun `pstack configure`")
         if config["foreign_seats"] != "off" and len([h for h in HARNESSES if detected.get(h, {}).get("cli")]) < 2:
             note("warn", "foreign seats are on, but only one harness CLI is installed", "run `pstack configure --foreign-seats off`")
-        if "claude" in harnesses:
-            agents_dir = os.path.join(HOME, ".claude", "agents")
-            have = {f[len("pstack-effort-"):-3] for f in os.listdir(agents_dir) if f.startswith("pstack-effort-")} if os.path.isdir(agents_dir) else set()
-            if have != wanted:
-                note("error", f"Claude Code effort agents ({', '.join(sorted(have)) or 'none'}) do not match the models file ({', '.join(sorted(wanted)) or 'none'})", "run `pstack install`")
 
     if "claude" in harnesses:
+        agents_dir = os.path.join(HOME, ".claude", "agents")
+        have = {f[len("pstack-effort-"):-3] for f in os.listdir(agents_dir) if f.startswith("pstack-effort-")} if os.path.isdir(agents_dir) else set()
+        if have != set(EFFORTS):
+            note("error", f"Claude Code effort agents ({', '.join(e for e in EFFORTS if e in have) or 'none'}) are not one per effort ({', '.join(EFFORTS)})", "run `pstack install`")
         try:
             with open(os.path.join(HOME, ".claude", "settings.json")) as f:
                 allow = json.load(f).get("permissions", {}).get("allow", [])

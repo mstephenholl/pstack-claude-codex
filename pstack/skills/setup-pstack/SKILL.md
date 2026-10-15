@@ -28,7 +28,7 @@ Add one `--set "<role>=<entry>, <entry>"` per change, for example `--set "swarm 
 
 ### 4. Write
 
-Run the same command without `--dry-run`. It writes the file and reruns the install, which generates the `pstack-effort-<level>` Claude Code agents the file needs.
+Run the same command without `--dry-run`. It writes the file and reruns the install.
 
 ### 5. Check and confirm
 

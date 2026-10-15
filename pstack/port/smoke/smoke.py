@@ -237,13 +237,16 @@ def no_cursor_slugs(ev):
     return not used, "used no Cursor model slug"
 
 
-def spawned(family, types=r"pstack-effort-xhigh"):
+EFFORT = r"(?:low|medium|high|xhigh|max)"  # skills move a subagent's effort off its entry to fit the job
+
+
+def spawned(family, types=rf"pstack-effort-{EFFORT}"):
     def check(ev):
         model = MODELS[(ev.harness, family)]
         if ev.harness == "claude":
             ok = ev.called(rf'"subagent_type":\s*"(?:{types})".*"model":\s*"{model}"|"model":\s*"{model}".*"subagent_type":\s*"(?:{types})"', name="Agent")
         else:
-            ok = ev.called(rf'"model":\s*"{re.escape(model)}".*"reasoning_effort":\s*"xhigh"|"reasoning_effort":\s*"xhigh".*"model":\s*"{re.escape(model)}"', name=r"(collaboration\.)?spawn_agent")
+            ok = ev.called(rf'"model":\s*"{re.escape(model)}".*"reasoning_effort":\s*"{EFFORT}"|"reasoning_effort":\s*"{EFFORT}".*"model":\s*"{re.escape(model)}"', name=r"(collaboration\.)?spawn_agent")
         return ok, f"spawned a {family} subagent on {model}"
     return check
 
@@ -395,7 +398,7 @@ SCENARIOS = {
         checks=[
             read_harness,
             lambda ev: (ev.called(r"playbooks/bug-fix\.md"), "opened the bug-fix playbook"),
-            spawned("code", types=r"pstack-effort-xhigh|poteto-agent"),
+            spawned("code", types=rf"pstack-effort-{EFFORT}|poteto-agent"),
             behaves(BEHAVIOR_CHECK, "update_user no longer leaves a stale entry"),
             repo_check("python3 -m unittest -q", "tests pass"),
         ],

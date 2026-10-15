@@ -213,16 +213,11 @@ elif [[ -d $agent_target ]]; then
 fi
 
 # Claude Code's Agent tool takes a model per spawn but not an effort, so each
-# effort a claude: entry asks for gets a generated agent that pins it.
-models="${PSTACK_MODELS:-$HOME/.agents/pstack-models.md}"
+# effort gets a generated agent that pins it. Skills move a subagent's effort
+# off its role's entry to fit the job, so every effort needs one.
 efforts=()
-if ((claude)) && [[ -f $models ]]; then
-  while read -r effort; do
-    case $effort in
-      low | medium | high | xhigh | max) efforts+=("$effort") ;;
-      *) echo "warn: $models asks for unknown Claude effort '$effort'" >&2 ;;
-    esac
-  done < <(grep -v '^#' "$models" | grep -oE 'claude:[A-Za-z0-9._-]+@[a-z]+' | sed 's/.*@//' | sort -u)
+if ((claude)); then
+  efforts=(low medium high xhigh max)
 fi
 
 for file in "$agent_target"/pstack-effort-*.md; do

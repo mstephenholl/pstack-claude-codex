@@ -151,7 +151,8 @@ class CliTest(Env):
         self.assertTrue(os.path.isfile(os.path.join(self.home, ".claude", "agents", "pstack-effort-high.md")))
         self.pstack("configure", "--budget", "large", "--foreign-seats", "on", "--yes")
         self.assertEqual(self.models_file()["interrogate reviewers"], "claude:opus@xhigh, codex:gpt-6-astra@xhigh")
-        self.assertFalse(os.path.exists(os.path.join(self.home, ".claude", "agents", "pstack-effort-high.md")))
+        agents = os.path.join(self.home, ".claude", "agents")
+        self.assertEqual({f for f in os.listdir(agents) if f.startswith("pstack-effort-")}, {f"pstack-effort-{e}.md" for e in ("low", "medium", "high", "xhigh", "max")})
 
     def test_configure_keeps_your_overrides_and_drops_retired_roles(self):
         self.pstack("install")

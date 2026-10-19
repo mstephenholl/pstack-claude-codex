@@ -10,7 +10,7 @@
     "has_issues": true,
     "has_wiki": false,
     "has_projects": false,
-    "description": "Cursor's pstack skills ported to Claude Code and Codex, with an installer and the pstack command"
+    "description": "Cursor's pstack skills ported to Codex, with Claude seats in its panels, an installer, and the pstack command"
   },
   "endpoints": [
     { "path": "topics", "method": "PUT", "body": { "names": ["agent-skills", "ai-agents", "claude-code", "codex", "pstack"] } },

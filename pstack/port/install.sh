@@ -22,6 +22,7 @@ SKILLS=(
   blast-radius
   bro
   correct
+  create-formal-verification-skill
   create-verification-skill
   figure-it-out
   how

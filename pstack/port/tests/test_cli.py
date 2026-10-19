@@ -63,6 +63,9 @@ class Env(unittest.TestCase):
         with open(self.env["PSTACK_DETECT_JSON"], "w") as f:
             json.dump(detected, f)
 
+    def doctor(self):
+        return json.loads(self.pstack("doctor", "--offline", "--json", code=None).stdout)["findings"]
+
     def saved_harnesses(self):
         with open(os.path.join(self.home, ".config", "pstack", "state.json")) as f:
             return json.load(f)["harnesses"]
@@ -72,13 +75,18 @@ class Env(unittest.TestCase):
 
 
 class CliTest(Env):
-    def test_install_links_skills_and_the_command(self):
-        self.pstack("install")
+    def test_install_links_codex_and_the_command_and_leaves_claude_code_to_upstreams_plugin(self):
+        self.assertIn("installed for codex.", self.pstack("install").stdout)
+        self.assertIn("poteto-mode", self.links("codex"))
+        self.assertEqual(self.links("claude"), [])
+        self.assertEqual(os.path.realpath(os.path.join(self.home, "bin", "pstack")), SCRIPT)
+        self.assertEqual(self.saved_harnesses(), ["codex"])
+
+    def test_install_for_both_harnesses_on_request(self):
+        self.pstack("install", "--claude", "--codex")
         self.assertIn("poteto-mode", self.links("claude"))
         self.assertEqual(self.links("claude"), self.links("codex"))
-        self.assertEqual(os.path.realpath(os.path.join(self.home, "bin", "pstack")), SCRIPT)
-        with open(os.path.join(self.home, ".config", "pstack", "state.json")) as f:
-            self.assertEqual(json.load(f)["harnesses"], ["claude", "codex"])
+        self.assertEqual(self.saved_harnesses(), ["claude", "codex"])
 
     def test_install_for_codex_only(self):
         self.pstack("install", "--codex")
@@ -92,13 +100,23 @@ class CliTest(Env):
         self.pstack("configure", "--budget", "large", "--foreign-seats", "off", "--yes")
         self.assertEqual(self.models_file()["reflect tooling"], "codex:gpt-6.1-sol@medium")
 
-    def test_install_with_only_claude_installed_skips_codex(self):
+    def test_install_with_only_claude_installed_points_to_upstreams_plugin_and_links_nothing(self):
         self.fake_installed("claude")
-        self.assertIn("installed for claude.", self.pstack("install").stdout)
+        proc = self.pstack("install", code=1)
+        self.assertIn("/plugin install pstack@cursor-plugins", proc.stderr)
+        self.assertIn("--claude", proc.stderr)
+        self.assertEqual(self.symlinks_under_home(), [])
+
+    def test_the_claude_flag_still_installs_this_fork_into_claude_code_and_doctor_suggests_upstream(self):
+        self.fake_installed("claude")
+        self.assertIn("installed for claude.", self.pstack("install", "--claude").stdout)
         self.assertIn("poteto-mode", self.links("claude"))
         self.assertEqual(self.links("codex"), [])
         self.assertEqual(self.saved_harnesses(), ["claude"])
-        self.pstack("doctor", "--offline")
+        superseded = [f for f in self.doctor() if "upstream's pstack plugin" in f["message"]]
+        self.assertEqual([f["level"] for f in superseded], ["warn"])
+        self.assertIn("/plugin install pstack@cursor-plugins", superseded[0]["fix"])
+        self.assertIn("pstack install --codex", superseded[0]["fix"])
 
     def test_install_with_only_codex_installed_skips_claude(self):
         self.fake_installed("codex")
@@ -128,21 +146,45 @@ class CliTest(Env):
         self.assertEqual(self.saved_harnesses(), ["claude"])
         self.assertEqual(self.links("codex"), [])
 
-    def test_doctor_notes_an_installed_cli_pstack_is_not_set_up_for(self):
-        self.fake_installed("claude")
+    def test_doctor_points_an_installed_claude_code_to_upstreams_plugin(self):
         self.pstack("install")
+        findings = self.doctor()
+        claude = [f for f in findings if f["message"].startswith("claude is installed")]
+        self.assertEqual([f["level"] for f in claude], ["ok"])
+        self.assertIn("/plugin install pstack@cursor-plugins", claude[0]["fix"])
+        self.assertFalse(any("pstack install --claude" in (f["fix"] or "") + f["message"] for f in findings))
+
+    def test_doctor_notes_an_installed_codex_that_pstack_is_not_set_up_for(self):
+        self.fake_installed("claude")
+        self.pstack("install", "--claude")
         self.fake_installed("claude", "codex")
-        lines = [line for line in self.pstack("doctor", "--offline").stdout.splitlines() if "pstack install --claude --codex" in line]
-        self.assertEqual([line.split()[0] for line in lines], ["ok"])
-        self.assertIn("codex", lines[0])
+        codex = [f for f in self.doctor() if f["message"].startswith("codex is installed")]
+        self.assertEqual([f["level"] for f in codex], ["ok"])
+        self.assertIn("pstack install --codex", codex[0]["message"])
 
     def test_doctor_and_status_say_so_when_no_harness_is_selected(self):
         self.fake_installed()
-        self.assertIn("neither claude nor codex is installed", self.pstack("doctor", "--offline", code=1).stdout)
+        out = self.pstack("doctor", "--offline", code=1).stdout
+        self.assertIn("pstack is not set up for any harness", out)
+        self.assertIn("/plugin install pstack@cursor-plugins", out)
         self.assertIn("harnesses: none selected", self.pstack("status").stdout)
 
-    def test_configure_applies_budget_foreign_seats_and_effort_limits(self):
+    def test_a_codex_install_seats_claude_only_while_foreign_seats_are_on(self):
         self.pstack("install")
+        self.pstack("configure", "--budget", "large", "--foreign-seats", "on", "--yes")
+        self.assertEqual(self.models_file()["interrogate reviewers"], "claude:opus@xhigh, codex:gpt-6-astra@xhigh")
+        self.assertEqual(self.models_file()["swarm workers"], "claude:sonnet@xhigh, codex:gpt-6.1-sol@medium")
+        self.assertEqual(self.links("claude"), [])
+        text = open(self.models).read().replace("bug-fix: claude:sonnet@xhigh", "bug-fix: claude:gpt-9@xhigh")
+        with open(self.models, "w") as f:
+            f.write(text)
+        self.assertIn("bug-fix: claude:gpt-9@xhigh is not an available model", self.pstack("doctor", "--offline", code=1).stdout)
+        self.pstack("configure", "--budget", "large", "--foreign-seats", "off", "--set", "bug-fix=codex:gpt-6.1-sol", "--yes")
+        self.assertEqual(self.models_file()["interrogate reviewers"], "codex:gpt-6-astra@xhigh, codex:gpt-6.1-sol@medium")
+        self.assertEqual(self.models_file()["swarm workers"], "codex:gpt-6.1-sol@medium")
+
+    def test_configure_applies_budget_foreign_seats_and_effort_limits(self):
+        self.pstack("install", "--claude", "--codex")
         self.pstack("configure", "--budget", "medium", "--foreign-seats", "off", "--yes")
         roles = self.models_file()
         self.assertEqual(roles["foreign seats"], "off")
@@ -155,7 +197,7 @@ class CliTest(Env):
         self.assertEqual({f for f in os.listdir(agents) if f.startswith("pstack-effort-")}, {f"pstack-effort-{e}.md" for e in ("low", "medium", "high", "xhigh", "max")})
 
     def test_configure_keeps_your_overrides_and_drops_retired_roles(self):
-        self.pstack("install")
+        self.pstack("install", "--claude", "--codex")
         self.pstack("configure", "--budget", "large", "--foreign-seats", "off", "--yes")
         with open(self.models, "a") as f:
             f.write("how critics: claude:opus@xhigh\n")
@@ -179,7 +221,7 @@ class CliTest(Env):
         self.pstack("configure", "--set", "not a role=claude:opus", "--yes", code=1)
 
     def test_doctor_finds_what_install_and_configure_fix(self):
-        self.pstack("install")
+        self.pstack("install", "--claude", "--codex")
         self.pstack("configure", "--budget", "large", "--foreign-seats", "off", "--yes")
         self.pstack("doctor", "--offline")
         os.remove(os.path.join(self.home, ".claude", "skills", "how"))
@@ -198,7 +240,7 @@ class CliTest(Env):
         os.makedirs(os.path.dirname(settings))
         with open(settings, "w") as f:
             json.dump({"model": "opus", "permissions": {"allow": ["Bash(ls:*)", f"Read({ROOT}/**)"]}}, f)
-        self.pstack("install", "--claude-read-rules")
+        self.pstack("install", "--claude", "--claude-read-rules")
         with open(settings) as f:
             data = json.load(f)
         self.assertEqual(data["model"], "opus")
@@ -212,7 +254,7 @@ class CliTest(Env):
 
     def test_doctor_flags_read_rules_that_never_matched(self):
         self.fake_installed("claude")
-        self.pstack("install")
+        self.pstack("install", "--claude")
         with open(os.path.join(self.home, ".claude", "settings.json"), "w") as f:
             json.dump({"permissions": {"allow": ["Read(~/.agents/pstack/**)", "Read(~/.claude/skills/**)", f"Read({ROOT}/**)"]}}, f)
         self.assertIn("Claude Code will ask before reading pstack's files", self.pstack("doctor", "--offline").stdout)
@@ -220,7 +262,7 @@ class CliTest(Env):
         self.assertNotIn("Claude Code will ask before reading pstack's files", self.pstack("doctor", "--offline").stdout)
 
     def test_uninstall_removes_everything_it_made(self):
-        self.pstack("install")
+        self.pstack("install", "--claude", "--codex")
         self.pstack("configure", "--budget", "large", "--foreign-seats", "off", "--yes")
         self.pstack("uninstall")
         for d in (".claude", ".codex", ".agents", "bin"):
@@ -260,7 +302,8 @@ class ReleaseTest(Env):
         subprocess.run(["bash", BOOTSTRAP], env=self.env, check=True, capture_output=True, text=True, stdin=subprocess.DEVNULL)
         self.assertEqual(git(managed, "describe", "--tags").strip(), "v0.2.0")
         self.assertEqual(os.path.realpath(os.path.join(self.home, "bin", "pstack")), os.path.join(managed, "pstack", "port", "pstack"))
-        self.assertEqual(os.path.realpath(os.path.join(self.home, ".claude", "skills", "how")), os.path.join(managed, "pstack", "skills", "how"))
+        self.assertEqual(os.path.realpath(os.path.join(self.home, ".codex", "skills", "how")), os.path.join(managed, "pstack", "skills", "how"))
+        self.assertFalse(os.path.lexists(os.path.join(self.home, ".claude", "skills", "how")))
 
     def tag_stray_names_on_the_tip(self):
         for name in ("v0.9", "v1.0.0-rc.1"):

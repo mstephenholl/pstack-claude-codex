@@ -1,6 +1,6 @@
-# pstack for Claude Code and Codex
+# pstack for Codex
 
-This repository runs pstack in Claude Code and Codex. Upstream's skill text stays as written wherever possible. Each ported skill gets one line under its title that points to the `pstack-harness` skill, which maps Cursor's tools, model slugs, paths, and transcripts to both harnesses. Keeping the diff small keeps upstream merges cheap.
+This repository runs pstack in Codex. Claude Code users get pstack from upstream's plugin, so the port covers what upstream does not: Codex, and Codex panels that seat Claude through its CLI. `pstack install --claude` still installs the port into Claude Code. Upstream's skill text stays as written wherever possible. Each ported skill gets one line under its title that points to the `pstack-harness` skill, which maps Cursor's tools, model slugs, paths, and transcripts to Codex, and to Claude Code for a Claude seat or a `--claude` install. Keeping the diff small keeps upstream merges cheap.
 
 ## Layout
 
@@ -10,8 +10,8 @@ This repository runs pstack in Claude Code and Codex. Upstream's skill text stay
 | `~/.local/bin/pstack` | Symlink to the `pstack` command, `port/pstack`. |
 | `~/.config/pstack/state.json` | The harnesses you installed for, so `update` reinstalls the same ones. |
 | `~/.agents/pstack` | Symlink to the clone's `pstack/`. Skills and agents find each other through it. |
-| `~/.claude/skills/<name>`, `~/.codex/skills/<name>` | Symlinks to each ported skill. |
-| `~/.claude/agents/` | Symlinks to `comment-sicko` and `poteto-agent`, plus the generated `pstack-effort-<level>` agents. |
+| `~/.codex/skills/<name>` | Symlinks to each ported skill. With `--claude`, `~/.claude/skills/<name>` too. |
+| `~/.claude/agents/` | With `--claude` only: symlinks to `comment-sicko` and `poteto-agent`, plus the generated `pstack-effort-<level>` agents. |
 | `~/.agents/pstack-models.md` | Model per role, written by `pstack configure` or `/setup-pstack`. |
 
 Keep the clone outside `~/.agents/skills`. Codex scans that directory recursively and would load every pstack skill, ported or not.
@@ -20,12 +20,12 @@ Keep the clone outside `~/.agents/skills`. Codex scans that directory recursivel
 
 Users install with the bootstrap one-liner in [`../README.md`](../README.md), which clones the repository and runs `pstack install`. The `pstack` command (`port/pstack`) is the interface for installing, configuring, checking, updating, and removing. It drives `port/install.sh`, which does the linking:
 
-- It links the skills in `SKILLS` and `TEAM_KIT_SKILLS` into each harness in `PSTACK_HARNESSES`, and the agents into Claude Code. It removes the links from a harness left out.
+- It links the skills in `SKILLS` and `TEAM_KIT_SKILLS` into each harness in `PSTACK_HARNESSES`, and the agents into Claude Code when it is one of them. It removes the links from a harness left out. `pstack install` passes Codex alone unless you pass `--claude` or saved that choice earlier, so a Claude Code with upstream's plugin never gets a second copy of the skills.
 - For every skill marked `disable-model-invocation: true`, it writes `agents/openai.yaml` with `allow_implicit_invocation: false`, because Codex ignores the frontmatter flag.
 - It generates a `pstack-effort-<level>` agent for every Claude effort, `low` through `max`, since Claude Code's `Agent` tool cannot set effort per spawn and skills move a subagent's effort to fit the job.
 - It takes over links that point into another pstack clone, or at a clone that was deleted, so moving the clone just works. It never overwrites anything else.
 
-`pstack configure` holds the model logic: detection (`claude --help` and `codex debug models`), defaults per role, the budget, foreign seats, and your overrides. `/setup-pstack` asks the questions and calls it. `PSTACK_DETECT_JSON` fakes detection for tests.
+`pstack configure` holds the model logic: detection (`claude --help` and `codex debug models`), defaults per role, the budget, foreign seats, and your overrides. With foreign seats on, it adds entries for every harness whose CLI is installed, not only the ones pstack is installed for, since a foreign seat only runs that CLI. `/setup-pstack` asks the questions and calls it. `PSTACK_DETECT_JSON` fakes detection for tests.
 
 In Codex, user-only skills appear in the `$` picker under the `pstack` namespace, for example `$pstack:poteto-mode`. Typing `$poteto-mode` as plain text in `codex exec` does not load the skill.
 
@@ -68,7 +68,7 @@ Expect manual conflicts in the files the port rewrote or edited beyond the point
 ~/.agents/pstack/port/smoke/smoke.py --recheck --out DIR  # re-score kept runs without rerunning
 ```
 
-Each scenario runs one skill headless against a throwaway repo with a planted stale-cache bug. The test then reads the transcripts of the parent, its subagents, and any foreign seat, and checks the port's plumbing and the skill's result. A full run takes 40 to 60 minutes at four parallel jobs and spends real tokens on Opus and `gpt-6-astra`. Passing runs are deleted along with their sessions. Failing runs stay in the output directory for inspection. Once you are done with them, delete their sessions and folders.
+Each scenario runs one skill headless against a throwaway repo with a planted stale-cache bug. The Claude Code runs load the port's skills from `~/.claude/skills`, so run them from an install made with `pstack install --claude --codex`, or pass `--harness codex`. The test then reads the transcripts of the parent, its subagents, and any foreign seat, and checks the port's plumbing and the skill's result. A full run takes 40 to 60 minutes at four parallel jobs and spends real tokens on Opus and `gpt-6-astra`. Passing runs are deleted along with their sessions. Failing runs stay in the output directory for inspection. Once you are done with them, delete their sessions and folders.
 
 ## CI
 

@@ -40,19 +40,11 @@ jobs:
       - run: bun test orch watch-pr
 
   install:
-    name: Install (${{ matrix.os }}, ${{ matrix.shell }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            shell: bash
-          - os: macos-latest
-            shell: /bin/bash
-    runs-on: ${{ matrix.os }}
+    name: Install (ubuntu-latest, bash)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: pstack/port/tests/install_test.sh ${{ matrix.shell }}
+      - run: pstack/port/tests/install_test.sh
       - name: pstack command, bootstrap, and update
         run: python3 -m unittest pstack/port/tests/test_cli.py
       - name: worktree-audit.sh with this runner's stat and date

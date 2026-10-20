@@ -162,6 +162,36 @@ class CliTest(Env):
         self.assertEqual([f["level"] for f in codex], ["ok"])
         self.assertIn("pstack install --codex", codex[0]["message"])
 
+    def test_doctor_stops_suggesting_upstreams_plugin_once_it_is_enabled(self):
+        self.fake_installed("claude")
+        self.pstack("install", "--claude")
+        with open(os.path.join(self.home, ".claude", "settings.json"), "w") as f:
+            json.dump({"enabledPlugins": {"pstack@cursor-plugins": True}}, f)
+        superseded = [f for f in self.doctor() if "upstream's pstack plugin" in f["message"]]
+        self.assertNotIn("/plugin install", superseded[0]["fix"])
+        self.assertIn("pstack install --codex", superseded[0]["fix"])
+        self.fake_installed("claude", "codex")
+        self.pstack("install", "--codex")
+        claude = [f for f in self.doctor() if f["message"].startswith("claude is installed")]
+        self.assertEqual([(f["level"], f["fix"]) for f in claude], [("ok", None)])
+
+    def test_moving_from_claude_code_to_codex_adds_codex_defaults_to_the_choices_kept(self):
+        self.fake_installed("claude")
+        self.pstack("install", "--claude")
+        self.pstack("configure", "--budget", "large", "--foreign-seats", "off", "--yes")
+        self.fake_installed("claude", "codex")
+        self.pstack("install", "--codex")
+        stranded = [f for f in self.doctor() if f["message"].startswith("no entry in the models file can run in codex")]
+        self.assertEqual([f["level"] for f in stranded], ["warn"])
+        self.assertIn("added codex's defaults", self.pstack("configure", "--yes").stdout)
+        roles = self.models_file()
+        self.assertEqual(roles["swarm workers"], "claude:sonnet@xhigh, codex:gpt-6.1-sol@medium")
+        self.assertEqual(roles["interrogate reviewers"], "claude:opus@xhigh, claude:sonnet@xhigh, codex:gpt-6-astra@xhigh, codex:gpt-6.1-sol@medium")
+        self.assertFalse([f for f in self.doctor() if f["message"].startswith("no entry in the models file")])
+        written = open(self.models).read()
+        self.assertNotIn("added codex's defaults", self.pstack("configure", "--yes").stdout)
+        self.assertEqual(open(self.models).read(), written)
+
     def test_doctor_and_status_say_so_when_no_harness_is_selected(self):
         self.fake_installed()
         out = self.pstack("doctor", "--offline", code=1).stdout

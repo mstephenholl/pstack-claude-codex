@@ -104,6 +104,16 @@ def seated_harnesses(native, detected, foreign_seats):
     return [h for h in HARNESSES if h in native or (foreign_seats == "on" and detected.get(h, {}).get("cli"))]
 
 
+def harnesses_without_entries(config, native, seated, foreign_seats):
+    """Native harnesses that no entry in the models file can run on, as after an install moves from Claude Code to Codex. Every role falls back to the session model there."""
+    entries = [e for role in (config or {}).get("roles", {}).values() for e in role]
+
+    def runs_on(e, harness):
+        return e["harness"] in (None, harness) or (foreign_seats == "on" and e["harness"] in seated)
+
+    return [h for h in native if entries and not any(runs_on(e, h) for e in entries)]
+
+
 def version():
     out = git("describe", "--tags", "--always", "--dirty").stdout.strip()
     return out or "unknown"
@@ -220,8 +230,9 @@ def plan(current, detected, harnesses, budget, foreign_seats, sets):
     old_budget = (current or {}).get("budget")
     old_foreign = (current or {}).get("foreign_seats") or "on"
     target = BUDGETS[budget]
-    roles, kept, needs_choice = {}, [], []
+    roles, kept, needs_choice, added = {}, [], [], set()
     seated, old_seated = seated_harnesses(harnesses, detected, foreign_seats), seated_harnesses(harnesses, detected, old_foreign)
+    missing = harnesses_without_entries(current, harnesses, seated, foreign_seats)
     for role, kind in ROLES:
         pairs = default_entries(kind, seated, foreign_seats)
         existing = (current or {}).get("roles", {}).get(role)
@@ -230,6 +241,9 @@ def plan(current, detected, harnesses, budget, foreign_seats, sets):
             if not was_default:
                 pairs = [(e["harness"], e["model"]) for e in existing]
                 kept.append(role)
+                for h in missing if role not in sets else []:
+                    pairs += default_entries(kind, [h], foreign_seats)
+                    added.add(h)
         if role in sets:
             pairs = [(e["harness"], e["model"]) for e in sets[role]]
         entries = []
@@ -252,6 +266,7 @@ def plan(current, detected, harnesses, budget, foreign_seats, sets):
         "harnesses": harnesses,
         "roles": {r: [format_entry(e) for e in entries] for r, entries in roles.items()},
         "kept_overrides": kept,
+        "added_defaults_for": [h for h in HARNESSES if h in added],
         "needs_choice": needs_choice,
         "dropped": dropped,
         "previous": {"budget": old_budget, "foreign_seats": (current or {}).get("foreign_seats")},
@@ -309,6 +324,18 @@ def inside_agents_skills():
 def claude_read_rules():
     # Claude Code reads a rule path with one leading slash as relative to the settings file, so an absolute path needs two.
     return READ_RULES + [f"Read(/{ROOT}/**)"]
+
+
+def claude_settings():
+    try:
+        with open(os.path.join(HOME, ".claude", "settings.json")) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def has_upstream_plugin():
+    return claude_settings().get("enabledPlugins", {}).get("pstack@cursor-plugins") is True
 
 
 def add_claude_read_rules():
@@ -418,6 +445,8 @@ def cmd_configure(args):
             print(f"needs a choice: {item}. Use --set \"ROLE=harness:model\" or --force.")
         for role in result["kept_overrides"]:
             print(f"kept your choice for {role}")
+        for harness in result["added_defaults_for"]:
+            print(f"added {harness}'s defaults to each choice kept, because no entry in the models file could run in {harness}")
         for key in result["dropped"]:
             print(f"dropped retired line {key!r}")
         print(f"\n{'Wrote' if write else 'Did not write'} {MODELS} (budget {budget}, foreign seats {foreign}).")
@@ -465,15 +494,19 @@ def cmd_doctor(args):
         dangling = [n for n in os.listdir(skills_dir) if os.path.islink(os.path.join(skills_dir, n)) and not os.path.exists(os.path.join(skills_dir, n))] if os.path.isdir(skills_dir) else []
         if dangling:
             note("warn", f"dangling links in {skills_dir}: {', '.join(dangling)}", "remove them, or run `pstack install` if they are pstack's")
+    plugin = has_upstream_plugin()
     if "claude" in harnesses:
         agents_dir = os.path.join(HOME, ".claude", "agents")
         missing = [a for a in listed["AGENTS"] if not os.path.isfile(os.path.join(agents_dir, f"{a}.md"))]
         if missing:
             note("error", f"Claude Code agents missing: {', '.join(missing)}", "run `pstack install`")
         note("warn", "this fork's Claude Code install is superseded by upstream's pstack plugin",
-             f"{UPSTREAM_PLUGIN}. Then run `pstack install --codex`, or `pstack uninstall` if you do not use Codex.")
+             ("" if plugin else f"{UPSTREAM_PLUGIN}. Then ") + "run `pstack install --codex`, or `pstack uninstall` if you do not use Codex.")
     if "claude" not in harnesses and detected.get("claude", {}).get("cli"):
-        note("ok", "claude is installed; it gets pstack from upstream's plugin, and Codex panels can still seat it", UPSTREAM_PLUGIN)
+        if plugin:
+            note("ok", "claude is installed with upstream's pstack plugin, and Codex panels can still seat it")
+        else:
+            note("ok", "claude is installed; it gets pstack from upstream's plugin, and Codex panels can still seat it", UPSTREAM_PLUGIN)
     if "codex" not in harnesses and detected.get("codex", {}).get("cli"):
         note("ok", "codex is installed, but pstack is not set up for it; run `pstack install --codex` to set it up")
 
@@ -483,6 +516,9 @@ def cmd_doctor(args):
     else:
         note("ok", f"models file: budget {config['budget'] or 'unrecorded'}, foreign seats {config['foreign_seats'] or 'on (default)'}")
         seated = seated_harnesses(harnesses, detected, config["foreign_seats"] or "on")
+        for harness in harnesses_without_entries(config, harnesses, seated, config["foreign_seats"] or "on"):
+            note("warn", f"no entry in the models file can run in {harness}, so every role runs on its session model",
+                 f"run `pstack configure`, which adds {harness}'s defaults")
         for role, entries in config["roles"].items():
             for e in entries:
                 if e["harness"] is None or e["harness"] not in seated:
@@ -504,11 +540,7 @@ def cmd_doctor(args):
         have = {f[len("pstack-effort-"):-3] for f in os.listdir(agents_dir) if f.startswith("pstack-effort-")} if os.path.isdir(agents_dir) else set()
         if have != set(EFFORTS):
             note("error", f"Claude Code effort agents ({', '.join(e for e in EFFORTS if e in have) or 'none'}) are not one per effort ({', '.join(EFFORTS)})", "run `pstack install`")
-        try:
-            with open(os.path.join(HOME, ".claude", "settings.json")) as f:
-                allow = json.load(f).get("permissions", {}).get("allow", [])
-        except (OSError, ValueError):
-            allow = []
+        allow = claude_settings().get("permissions", {}).get("allow", [])
         if not all(r in allow for r in claude_read_rules()):
             note("warn", "Claude Code will ask before reading pstack's files", "run `pstack install --claude-read-rules`")
     for tool, why in (("gh", "the PR playbooks"), ("bun", "the Babysit and Orchestrate helper scripts")):

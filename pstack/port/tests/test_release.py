@@ -18,6 +18,7 @@ PORT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 ROOT = os.path.dirname(os.path.dirname(PORT))
 SCRIPT = os.path.join(PORT, "release.py")
 CI = os.path.join(ROOT, ".github", "workflows", "pstack-ci.yml")
+MACOS_WORKFLOW = os.path.join(ROOT, ".github", "workflows", "pstack-macos.yml")
 PR_WORKFLOW = os.path.join(ROOT, ".github", "workflows", "pstack-pr.yml")
 SYNC = os.path.join(PORT, "sync-upstream.sh")
 spec = importlib.util.spec_from_file_location("release", SCRIPT)
@@ -875,11 +876,15 @@ class PrWorkflowTest(unittest.TestCase):
                 self.assertNotIn("${{", line)
 
 
-def ci_jobs():
-    with open(CI) as f:
+def ci_jobs(workflow=CI):
+    with open(workflow) as f:
         body = f.read().split("\njobs:\n", 1)[1]
     parts = re.split(r"^  ([A-Za-z0-9_-]+):[ \t]*$", body, flags=re.M)
     return dict(zip(parts[1::2], parts[2::2]))
+
+
+def steps(job):
+    return job.split("\n    steps:\n", 1)[1].rstrip()
 
 
 class CiWiringTest(unittest.TestCase):
@@ -909,6 +914,9 @@ class CiWiringTest(unittest.TestCase):
             "The local actionlint rejects the key, but GitHub documents it, so do not delete it to quiet the linter",
         )
 
+    def test_no_job_the_gate_needs_runs_on_macos(self):
+        self.assertEqual([name for name, job in ci_jobs().items() if "macos" in job], [])
+
     def test_the_release_checks_out_the_full_history_without_keeping_credentials(self):
         job = ci_jobs()["release"]
         self.assertRegex(job, re.compile(r"^          fetch-depth: 0$", re.M))
@@ -918,6 +926,31 @@ class CiWiringTest(unittest.TestCase):
         job = ci_jobs()["release"]
         self.assertRegex(job, re.compile(r"^        run: .*\brelease\.py --publish\b", re.M))
         self.assertRegex(job, re.compile(r"^    timeout-minutes: [1-9][0-9]*$", re.M))
+
+
+class MacosWorkflowTest(unittest.TestCase):
+    def setUp(self):
+        with open(MACOS_WORKFLOW) as f:
+            self.text = f.read()
+
+    def test_it_runs_on_main_daily_and_on_demand_but_never_on_a_pull_request(self):
+        triggers = self.text.split("\non:\n", 1)[1].split("\n\n", 1)[0]
+        self.assertEqual(re.findall(r"^  ([a-z_]+):", triggers, re.M), ["push", "schedule", "workflow_dispatch"])
+        self.assertRegex(triggers, re.compile(r"^    branches: \[main\]$", re.M))
+
+    def test_it_reads_the_repository_and_nothing_more(self):
+        self.assertRegex(self.text, re.compile(r"^permissions:\n  contents: read$", re.M))
+        self.assertEqual(self.text.count("permissions:"), 1)
+
+    def test_a_newer_commit_cancels_a_run_still_waiting_for_a_runner(self):
+        self.assertRegex(self.text, re.compile(r"^concurrency:\n  group: pstack-macos-\$\{\{ github\.ref \}\}\n  cancel-in-progress: true$", re.M))
+
+    def test_it_runs_the_gated_install_steps_with_the_stock_bash(self):
+        jobs = ci_jobs(MACOS_WORKFLOW)
+        self.assertEqual(list(jobs), ["install"])
+        self.assertRegex(jobs["install"], re.compile(r"^    runs-on: macos-latest$", re.M))
+        linux = steps(ci_jobs()["install"]).replace("install_test.sh\n", "install_test.sh /bin/bash\n")
+        self.assertEqual(steps(jobs["install"]), linux)
 
 
 if __name__ == "__main__":

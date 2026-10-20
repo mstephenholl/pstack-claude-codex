@@ -115,10 +115,10 @@ Some things work differently across the two:
 Earlier releases of this fork also installed into Claude Code. To switch Claude Code to upstream's plugin:
 
 1. In Claude Code, run `/plugin marketplace add cursor/plugins` and `/plugin install pstack@cursor-plugins`, then `/pstack:setup-pstack`.
-2. Run `pstack install --codex`. It removes this fork's links and agents from Claude Code and keeps Codex. If you do not use Codex, run `pstack uninstall` instead.
+2. Run `pstack install --codex`, then `pstack configure`. The install removes this fork's links and agents from Claude Code and keeps Codex. Your models file still names only Claude models, so until `configure` adds Codex's defaults next to them, every role in Codex runs on the session's model, and `pstack doctor` warns. If you do not use Codex, run `pstack uninstall` instead.
 3. If you added read rules with `--claude-read-rules`, remove them from `~/.claude/settings.json` by hand. Nothing else uses them.
 
-`pstack doctor` warns while this fork is still installed in Claude Code.
+`pstack doctor` warns while this fork is still installed in Claude Code. Once `settings.json` enables `pstack@cursor-plugins`, it stops telling you to install the plugin.
 
 ### Installing this fork into Claude Code
 

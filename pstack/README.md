@@ -68,8 +68,9 @@ For anything that needs rigor, start with `poteto-mode`. It matches the task to 
 | | `technical-writing` | Docs, READMEs, PR descriptions, and commit messages. |
 | | `typescript-best-practices` | TypeScript conventions. |
 | Verify | `create-verification-skill` | A project skill that drives your app the way a user does. |
-| | `create-formal-verification-skill` | A project skill that formally verifies one property where a bug costs the most and tests reach the least, such as a race, a retry, or a state machine. |
 | | `maintain-verification-skill` | Keeping that skill accurate as the app changes. |
+| | `create-formal-verification-skill` | A project skill that formally verifies one property where a bug costs the most and tests reach the least, such as a race, a retry, or a state machine. |
+| | `maintain-formal-verification-skill` | Keeping that skill true to the code after the code changes, and telling drift in the model from a bug in the code. |
 | | `control-ui`, `control-cli` | Driving a browser or Electron UI, or a CLI or TUI, to capture evidence. |
 | | `show-me-your-work` | A decision log for long or unattended runs. |
 | | `benchmark-checklist` | Vetting a performance number before you report or act on it. |

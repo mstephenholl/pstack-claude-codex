@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Install, configure, check, update, and remove pstack for Claude Code and Codex.
+"""Install, configure, check, update, and remove pstack for Codex.
+
+Claude Code gets pstack from upstream's plugin. `--claude` still installs this
+fork there, and a Codex panel can seat Claude through its CLI either way.
 
   pstack install [--claude] [--codex] [--claude-read-rules]
   pstack configure [--budget BUDGET] [--foreign-seats on|off] [--set "ROLE=ENTRY, ..."]
@@ -31,6 +34,7 @@ STATE = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".c
 BIN = os.environ.get("PSTACK_BIN") or os.path.join(HOME, ".local", "bin")
 MANAGED_HOME = os.path.join(HOME, ".local", "share", "pstack")
 HARNESSES = ("claude", "codex")
+UPSTREAM_PLUGIN = "in Claude Code, run `/plugin marketplace add cursor/plugins`, then `/plugin install pstack@cursor-plugins`"
 
 BUDGETS = {"unlimited": "max", "large": "xhigh", "medium": "high", "small": "medium"}
 EFFORTS = ["low", "medium", "high", "xhigh", "max"]
@@ -92,7 +96,12 @@ def save_state(state):
 
 def selected_harnesses(args=None):
     chosen = [h for h in HARNESSES if args is not None and getattr(args, h, False)]
-    return chosen or load_state().get("harnesses") or [h for h, found in installed_clis().items() if found]
+    return chosen or load_state().get("harnesses") or (["codex"] if installed_clis()["codex"] else [])
+
+
+def seated_harnesses(native, detected, foreign_seats):
+    """A foreign seat only runs the other harness's CLI, so a panel can seat a harness that pstack is not installed for."""
+    return [h for h in HARNESSES if h in native or (foreign_seats == "on" and detected.get(h, {}).get("cli"))]
 
 
 def version():
@@ -212,11 +221,12 @@ def plan(current, detected, harnesses, budget, foreign_seats, sets):
     old_foreign = (current or {}).get("foreign_seats") or "on"
     target = BUDGETS[budget]
     roles, kept, needs_choice = {}, [], []
+    seated, old_seated = seated_harnesses(harnesses, detected, foreign_seats), seated_harnesses(harnesses, detected, old_foreign)
     for role, kind in ROLES:
-        pairs = default_entries(kind, harnesses, foreign_seats)
+        pairs = default_entries(kind, seated, foreign_seats)
         existing = (current or {}).get("roles", {}).get(role)
         if existing is not None:
-            was_default = [(e["harness"], e["model"]) for e in existing] == default_entries(kind, harnesses, old_foreign)
+            was_default = [(e["harness"], e["model"]) for e in existing] == default_entries(kind, old_seated, old_foreign)
             if not was_default:
                 pairs = [(e["harness"], e["model"]) for e in existing]
                 kept.append(role)
@@ -268,7 +278,7 @@ def write_models_file(result, path=MODELS):
 def run_install(harnesses, uninstall=False, quiet=False):
     """Runs install.sh. quiet sends its progress to stderr, so JSON on stdout stays parseable."""
     if not harnesses and not uninstall:
-        fail("neither claude nor codex is on your PATH. Install Claude Code or Codex, or pass --claude or --codex to install anyway.")
+        fail(f"codex is not on your PATH. Install Codex, or pass --codex to install anyway. For pstack in Claude Code, {UPSTREAM_PLUGIN}, or pass --claude to install this fork there instead.")
     env = {**os.environ, "PSTACK_HARNESSES": " ".join(harnesses), "PSTACK_MODELS": MODELS}
     cmd = [os.path.join(PORT, "install.sh")] + (["--uninstall"] if uninstall else [])
     proc = subprocess.run(cmd, env=env, stdout=sys.stderr if quiet else None)
@@ -426,7 +436,7 @@ def cmd_doctor(args):
     harnesses = selected_harnesses()
     note("ok", f"pstack {version()} at {ROOT}" + (f", for {' and '.join(harnesses)}" if harnesses else ""))
     if not harnesses:
-        note("error", "neither claude nor codex is installed", "install Claude Code or Codex, then run `pstack install`")
+        note("error", "pstack is not set up for any harness", f"install Codex, then run `pstack install`. For pstack in Claude Code, {UPSTREAM_PLUGIN}")
     if inside_agents_skills():
         note("error", "the clone is inside ~/.agents/skills, which Codex scans recursively", f"move it, for example to {MANAGED_HOME}, and run `pstack install`")
     if git("status", "--porcelain", "--untracked-files=no").stdout.strip():
@@ -460,18 +470,22 @@ def cmd_doctor(args):
         missing = [a for a in listed["AGENTS"] if not os.path.isfile(os.path.join(agents_dir, f"{a}.md"))]
         if missing:
             note("error", f"Claude Code agents missing: {', '.join(missing)}", "run `pstack install`")
-    for harness in HARNESSES:
-        if harness not in harnesses and detected.get(harness, {}).get("cli"):
-            note("ok", f"{harness} is installed, but pstack is not set up for it; run `pstack install --claude --codex` to add it")
+        note("warn", "this fork's Claude Code install is superseded by upstream's pstack plugin",
+             f"{UPSTREAM_PLUGIN}. Then run `pstack install --codex`, or `pstack uninstall` if you do not use Codex.")
+    if "claude" not in harnesses and detected.get("claude", {}).get("cli"):
+        note("ok", "claude is installed; it gets pstack from upstream's plugin, and Codex panels can still seat it", UPSTREAM_PLUGIN)
+    if "codex" not in harnesses and detected.get("codex", {}).get("cli"):
+        note("ok", "codex is installed, but pstack is not set up for it; run `pstack install --codex` to set it up")
 
     config = read_models_file()
     if config is None:
         note("warn", f"no models file at {MODELS}; skills use pstack-harness's defaults", "run `pstack configure`")
     else:
         note("ok", f"models file: budget {config['budget'] or 'unrecorded'}, foreign seats {config['foreign_seats'] or 'on (default)'}")
+        seated = seated_harnesses(harnesses, detected, config["foreign_seats"] or "on")
         for role, entries in config["roles"].items():
             for e in entries:
-                if e["harness"] is None or e["harness"] not in harnesses:
+                if e["harness"] is None or e["harness"] not in seated:
                     continue
                 models = detected.get(e["harness"], {}).get("models", {})
                 if detected.get(e["harness"], {}).get("cli") and e["model"] not in models:
@@ -644,8 +658,8 @@ def main():
     parser = argparse.ArgumentParser(prog="pstack", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p = sub.add_parser("install", help="link pstack's skills and agents into Claude Code and Codex")
-    p.add_argument("--claude", action="store_true", help="install for Claude Code (default: the saved choice, or the harness CLIs on your PATH)")
+    p = sub.add_parser("install", help="link pstack's skills into Codex (default: the saved choice, or Codex when it is on your PATH)")
+    p.add_argument("--claude", action="store_true", help="install this fork into Claude Code, which otherwise gets pstack from upstream's plugin")
     p.add_argument("--codex", action="store_true", help="install for Codex")
     p.add_argument("--claude-read-rules", action="store_true", help="let Claude Code read pstack's files without asking, via ~/.claude/settings.json")
     p.set_defaults(run=cmd_install)

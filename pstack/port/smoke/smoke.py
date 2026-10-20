@@ -7,7 +7,8 @@ subagents', and any foreign seat's) for the plumbing the port adds: reading
 pstack-harness, resolving models from ~/.agents/pstack-models.md, spawning the
 right subagent type and model, and running the other harness's CLI for a
 foreign seat. Runs that pass are deleted, sessions included. Runs that fail
-are kept for inspection.
+are kept for inspection. The trust entries Codex adds to its config.toml for
+each run's repo are removed either way.
 
   smoke.py [--only how,interrogate] [--harness claude|codex] [--jobs 4] [--keep] [--out DIR]
 """
@@ -26,6 +27,7 @@ import time
 PSTACK = os.path.expanduser("~/.agents/pstack")
 TRANSCRIPTS = os.path.join(PSTACK, "port", "transcripts.py")
 CLAUDE_PROJECTS = os.path.expanduser("~/.claude/projects")
+CODEX_CONFIG = os.path.join(os.environ.get("CODEX_HOME") or os.path.expanduser("~/.codex"), "config.toml")
 
 CACHE_MAIN = '''\
 # User cache module
@@ -369,7 +371,7 @@ SCENARIOS = {
     ),
     "why": dict(
         skill="why",
-        task="Why does get_user cache results in a module-level dict? For this smoke test, run only the source control investigator and record every other evidence category as skipped for the smoke test. Do not query any MCP.",
+        task="Why does get_user cache results in a module-level dict? For this smoke test, run only the source control investigator, record every other evidence category as skipped for the smoke test, and still run the synthesizer. Do not query any MCP.",
         checks=[read_harness, read_models, spawned("code"), spawned("judgment"), answer_matches(r"source", "cites sources")],
     ),
     "interrogate": dict(
@@ -462,7 +464,8 @@ def run_claude(prompt, repo, log, resume=None, mode="acceptEdits"):
 
 def run_codex(prompt, repo, log, resume=None, mode=None):
     last = os.path.join(os.path.dirname(repo), "codex-last.md")
-    cmd = ["codex", "exec", "--json", "-s", "workspace-write", "--skip-git-repo-check", "-C", repo, "-o", last]
+    # --approve-for-me runs in workspace-write and lets Codex's reviewer answer escalation requests, which a headless run cannot.
+    cmd = ["codex", "exec", "--json", "--approve-for-me", "--skip-git-repo-check", "-C", repo, "-o", last]
     cmd += ["resume", resume, prompt] if resume else [prompt]
     proc = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=45 * 60)
     log.write(proc.stdout + proc.stderr)
@@ -518,6 +521,28 @@ def delete_sessions(run_dir):
             shutil.rmtree(d, ignore_errors=True)
 
 
+def forget_trust(out_dir, config=CODEX_CONFIG):
+    """Remove the [projects."<repo>"] trust entries that codex exec adds to config.toml for each run."""
+    try:
+        with open(config) as f:
+            lines = f.readlines()
+    except OSError:
+        return
+    kept, ours = [], False
+    for line in lines:
+        if line.startswith("["):
+            header = re.match(r'\[projects\."(.*)"\]\s*$', line)
+            ours = bool(header) and header.group(1).startswith(out_dir + os.sep)
+        if not ours:
+            kept.append(line)
+    if kept != lines:
+        tmp = config + ".smoke"
+        with open(tmp, "w") as f:
+            f.writelines(kept)
+        shutil.copymode(config, tmp)
+        os.replace(tmp, config)
+
+
 def recheck(out_dir):
     for run_dir in sorted(glob.glob(os.path.join(out_dir, "*-*"))):
         name, harness = os.path.basename(run_dir).rsplit("-", 1)
@@ -571,6 +596,8 @@ def main():
                 delete_sessions(row["run_dir"])
                 shutil.rmtree(row["run_dir"], ignore_errors=True)
             rows.append(row)
+    if "codex" in harnesses:
+        forget_trust(out_dir)
 
     print()
     for row in sorted(rows, key=lambda r: (r["name"], r["harness"])):

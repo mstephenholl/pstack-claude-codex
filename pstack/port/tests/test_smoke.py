@@ -61,5 +61,64 @@ class AnswerCheckTest(unittest.TestCase):
         self.assertFalse(self.finds_stale_cache_bug("A CLI typo exits 0, and a failed save empties users.json."))
 
 
+class RunCodexTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.repo = os.path.join(self.tmp, "repo")
+        os.makedirs(self.repo)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def test_lets_codexs_reviewer_answer_escalations(self):
+        bin_dir, args = os.path.join(self.tmp, "bin"), os.path.join(self.tmp, "args")
+        os.makedirs(bin_dir)
+        codex = os.path.join(bin_dir, "codex")
+        with open(codex, "w") as f:
+            f.write(f"#!/bin/sh\nprintf '%s\\n' \"$@\" > {args}\n")
+        os.chmod(codex, 0o755)
+        with mock.patch.dict(os.environ, {"PATH": bin_dir + os.pathsep + os.environ["PATH"]}):
+            smoke.run_codex("prompt", self.repo, io.StringIO())
+        argv = open(args).read().splitlines()
+        self.assertIn("--approve-for-me", argv)
+        # codex exec refuses --approve-for-me alongside a sandbox flag.
+        self.assertFalse({"-s", "--sandbox"} & set(argv), argv)
+
+
+class ForgetTrustTest(unittest.TestCase):
+    OUT = "/tmp/pstack-smoke-1"
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.config = os.path.join(self.tmp, "config.toml")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def test_removes_only_this_runs_entries(self):
+        with open(self.config, "w") as f:
+            f.write(
+                'model = "gpt-6-astra"\n\n'
+                '[projects."/home/me/code"]\ntrust_level = "trusted"\n\n'
+                f'[projects."{self.OUT}/how-codex/repo"]\ntrust_level = "trusted"\n\n'
+                f'[projects."{self.OUT}-2/how-codex/repo"]\ntrust_level = "trusted"\n\n'
+                f'[projects."{self.OUT}/why-codex/repo"]\ntrust_level = "trusted"\n\n'
+                '[features]\nfast = true\n'
+            )
+        os.chmod(self.config, 0o600)
+        smoke.forget_trust(self.OUT, self.config)
+        self.assertEqual(open(self.config).read(), (
+            'model = "gpt-6-astra"\n\n'
+            '[projects."/home/me/code"]\ntrust_level = "trusted"\n\n'
+            f'[projects."{self.OUT}-2/how-codex/repo"]\ntrust_level = "trusted"\n\n'
+            '[features]\nfast = true\n'
+        ))
+        self.assertEqual(os.stat(self.config).st_mode & 0o777, 0o600)
+
+    def test_leaves_a_missing_config_missing(self):
+        smoke.forget_trust(self.OUT, self.config)
+        self.assertFalse(os.path.exists(self.config))
+
+
 if __name__ == "__main__":
     unittest.main()

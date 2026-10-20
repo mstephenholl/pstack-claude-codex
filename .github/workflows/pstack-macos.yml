@@ -1,0 +1,27 @@
+name: pstack macOS
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pstack-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install:
+    name: Install (macos-latest, /bin/bash)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: pstack/port/tests/install_test.sh /bin/bash
+      - name: pstack command, bootstrap, and update
+        run: python3 -m unittest pstack/port/tests/test_cli.py
+      - name: worktree-audit.sh with this runner's stat and date
+        run: python3 -m unittest pstack/port/tests/test_worktree_audit.py

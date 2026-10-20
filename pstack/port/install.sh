@@ -29,6 +29,7 @@ SKILLS=(
   in-your-own-words
   interrogate
   ketchup
+  maintain-formal-verification-skill
   maintain-verification-skill
   no-comments
   poteto-mode

@@ -36,7 +36,8 @@ import sys
 POINTER = re.compile(r"^Outside Cursor, first read `~/\.agents/pstack/skills/pstack-harness/SKILL\.md`.*$", re.M)
 # What the port keeps. Anything else upstream adds or changes is dropped on merge.
 KEEP_FILES = {"README.md", ".gitignore", "cursor-team-kit/LICENSE", ".github/dependabot.yml", ".github/SECURITY.md"}
-KEEP_DIRS = ("pstack/", "cursor-team-kit/skills/deslop/", "cursor-team-kit/skills/control-ui/", "cursor-team-kit/skills/control-cli/")
+KEEP_DIRS = ("pstack/", "cursor-team-kit/skills/deslop/", "cursor-team-kit/skills/control-ui/", "cursor-team-kit/skills/control-cli/",
+             ".agents/skills/", ".claude/skills/")
 KEEP_WORKFLOWS = re.compile(r"\.github/workflows/pstack-[^/]+\.yml")
 DROP = re.compile(r"^pstack/((\.cursor-plugin|assets|automations|docs|skills/make-bot-ui|skills/poteto-help)/|plugin\.json$)")
 OURS = {"README.md", "pstack/README.md", ".github/dependabot.yml", ".github/SECURITY.md"}

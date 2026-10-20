@@ -177,7 +177,7 @@ pstack/port/github-settings.py --repo <owner>/<repo> --config <path>   # read an
 
 To remove a tag pushed by mistake, an admin disables the `release tags` ruleset in the repository settings, deletes the tag, and enables the ruleset again. Immutable releases do not get in the way, because a tag pushed by hand has no release. `release.py` fails when the newest plain tag is not in the history of the commit it releases, and its error points here.
 
-`merge-upstream.py` deletes every path that its `KEEP` pattern does not match. `KEEP` covers `pstack/`, `README.md`, `.gitignore`, the team kit's license and three of its skills, `.github/workflows/pstack-*.yml`, `.github/dependabot.yml`, and `.github/SECURITY.md`. When upstream changes `README.md`, `pstack/README.md`, `.github/dependabot.yml`, or `.github/SECURITY.md`, the sync keeps our copy. A file anywhere else, such as `.github/CODEOWNERS`, disappears with the next upstream sync unless you widen `KEEP`.
+`merge-upstream.py` deletes every path that its `KEEP` pattern does not match. `KEEP` covers `pstack/`, `README.md`, `.gitignore`, the team kit's license and three of its skills, this repository's project skills in `.agents/skills/` and `.claude/skills/`, `.github/workflows/pstack-*.yml`, `.github/dependabot.yml`, and `.github/SECURITY.md`. When upstream changes `README.md`, `pstack/README.md`, `.github/dependabot.yml`, or `.github/SECURITY.md`, the sync keeps our copy. A file anywhere else, such as `.github/CODEOWNERS`, disappears with the next upstream sync unless you widen `KEEP`.
 
 ## Uninstall
 

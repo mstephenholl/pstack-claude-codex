@@ -40,6 +40,7 @@ SKILLS=(
   setup-pstack
   sharpen
   show-me-your-work
+  statechart
   swarm
   technical-writing
   typescript-best-practices

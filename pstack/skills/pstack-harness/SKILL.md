@@ -18,6 +18,8 @@ You are in Claude Code if your tools include `Agent`. You are in Codex if your t
 - A personal skill that would go in `~/.cursor/skills/<name>/` goes in `~/.agents/skills/<name>/`, with `~/.claude/skills/<name>` symlinked to it. Codex reads `~/.agents/skills` directly. It lives outside any repo, so it gets no worktree or PR. Tell the user its path.
 - In Codex, the sandbox keeps a repo's `.agents/` read-only, and `~/.agents/` and `~/.claude/` are outside it. Run each shell command that writes there with `sandbox_permissions: "require_escalated"` and a `justification` naming the skill, from the first attempt. If the write is denied, stop and tell the user. Never put the skill somewhere Codex does not look, such as `.cursor/skills/`.
 - To find existing skills where a skill searches `.cursor/skills/` or `~/.cursor/skills/`, search `.agents/skills/`, `.claude/skills/`, `~/.agents/skills/`, `~/.claude/skills/`, and `~/.codex/skills/`, following symlinks.
+- Cursor puts a chat's worktree in `.cursor/worktrees/<repo>/<name>`. Claude Code puts one in the repo's `.claude/worktrees/<name>`, and the Codex app puts one in `~/.codex/worktrees/` (`$CODEX_HOME/worktrees`). In every harness, read worktree paths from `git worktree list`.
+- `~/Library/Application Support/Cursor` is Cursor's app data. Clear it only when Cursor is installed. The harnesses' own folders, `~/.claude/projects/` and `~/.codex/sessions/`, hold the transcripts that `worktree-audit.sh` and `transcripts.py` read, so they are not caches. Leave them unless the user asks.
 - A skill you write with `disable-model-invocation: true` also needs `agents/openai.yaml` containing `policy:` and `  allow_implicit_invocation: false`. Codex ignores the frontmatter flag.
 
 ## Running another pstack skill

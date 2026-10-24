@@ -29,6 +29,7 @@ SKILLS=(
   in-your-own-words
   interrogate
   ketchup
+  ketchup-video
   maintain-formal-verification-skill
   maintain-verification-skill
   no-comments

@@ -47,6 +47,14 @@ origin/*) git fetch origin "+refs/heads/${base#origin/}:refs/remotes/$base" --qu
 esac
 git rev-parse --verify --quiet "$base^{commit}" >/dev/null 2>&1 || { echo "error: base ref not found: $base" >&2; exit 1; }
 
+# GNU coreutils (Linux, Homebrew gnubin) reads `stat -f` as file system status
+# and `date -r` as a file, so pick the stat and date flags once.
+if stat -c %Y / >/dev/null 2>&1; then
+	stat_fmt=(-c '%Y %n'); fmt_day() { date -d "@$1" '+%Y-%m-%d'; }
+else
+	stat_fmt=(-f '%m %N'); fmt_day() { date -r "$1" '+%Y-%m-%d'; }
+fi
+
 # PR state by branch, fetched once as [{number, state, head}] with a lowercase
 # state. Origin when its CLI can read this repo's PRs, otherwise gh. Empty when
 # neither can.
@@ -71,8 +79,6 @@ transcripts=$(mktemp)
 	find "$HOME/.claude/projects" "$HOME/.codex/sessions" -name '*.jsonl' -mtime -5 2>/dev/null
 } > "$transcripts"
 now=$(date +%s)
-# GNU stat prints a file's mtime with -c; BSD stat uses -f, which on GNU reports the filesystem.
-if stat -c %Y / >/dev/null 2>&1; then mtime=(stat -c '%Y %n'); else mtime=(stat -f '%m %N'); fi
 
 echo "# base: $base"
 printf "SIZE\tAGE\tMERGED\tDIRTY\tREMOTE\tPR\tLAST_CHAT\tBUCKET\tWORKTREE\n"
@@ -114,9 +120,9 @@ git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt;
 	if [ -s "$transcripts" ]; then
 		f=$(tr '\n' '\0' < "$transcripts" \
 			| xargs -0 rg -l -0 -e "${wt}/" -e "${wt}\"" 2>/dev/null \
-			| xargs -0 "${mtime[@]}" 2>/dev/null | sort -rn | head -1)
+			| xargs -0 stat "${stat_fmt[@]}" 2>/dev/null | sort -rn | head -1)
 		if [ -n "$f" ]; then last_ts=$(echo "$f" | awk '{print $1}')
-			last=$(date -r "$last_ts" '+%Y-%m-%d' 2>/dev/null || date -d "@$last_ts" '+%Y-%m-%d'); fi
+			last=$(fmt_day "$last_ts" 2>/dev/null); fi
 	fi
 	recent=$([ "$last_ts" -gt 0 ] 2>/dev/null && [ $(( (now - last_ts) / 86400 )) -le 4 ] && echo yes || echo no)
 

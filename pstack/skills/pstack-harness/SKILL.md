@@ -50,6 +50,7 @@ Most pstack skills are user-only, so they are hidden from you and the `Skill` to
 | todolist | Your task or todo tool | `update_plan` |
 | `/loop` | The `loop` skill (`/loop 1h <tick prompt>`), or `Monitor` for an event | See the tick rule under Long runs |
 | `/visualize` | A Mermaid diagram, or a chart image you render with a short script and give by path | A Mermaid diagram, or a chart image you render with a short script and give by path |
+| An image or video embedded in the reply | A terminal shows neither. Give the file's absolute path where the reply would show it. | Same |
 | MCP discovery (the `mcps/` directory) | MCP tools are named `mcp__<server>__<tool>`. Search deferred tools too. | `codex mcp list`, plus the MCP tools in your tool list |
 
 Named agents:

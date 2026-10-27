@@ -21,6 +21,11 @@ README_UPSTREAM = "# cursor/plugins\n\nShared intro.\n\nShared middle.\n\nShared
 README_OURS = README_UPSTREAM.replace("# cursor/plugins", "# pstack for Claude Code and Codex")
 DEPENDABOT_UPSTREAM = "version: 2\nupdates: []\n\n# Shared notes.\n\n# Shared end.\n"
 DEPENDABOT_OURS = DEPENDABOT_UPSTREAM.replace("updates: []", "# ours")
+PSTACK_README_UPSTREAM = ("# pstack\n\n| skill | use it when |\n|---|---|\n"
+                          "| [`/how`](./skills/how/SKILL.md) | you want code explained. |\n"
+                          "| [`/principle-a`](./skills/principle-a/SKILL.md) | you want a principle. |\n")
+PSTACK_README_OURS = ("# pstack for Codex\n\n| Use | Skill | What you get |\n|---|---|---|\n"
+                      "| Understand | `how` | Code explained. |\n| Principles | `principle-*` | The principles. |\n")
 
 
 def git(cwd, *args):
@@ -78,8 +83,11 @@ class MergeTest(unittest.TestCase):
         git(self.upstream, "init", "-q", "-b", "main")
         files = {
             "README.md": README_UPSTREAM,
-            "pstack/port/install.sh": "SKILLS=(\n  how\n)\n",
+            "pstack/README.md": PSTACK_README_UPSTREAM,
+            "pstack/port/install.sh": "SKILLS=(\n  how\n  principle-a\n)\n",
             "pstack/skills/how/SKILL.md": HOW_UPSTREAM,
+            "pstack/skills/how/scripts/explain.mjs": "console.log('how');\n",
+            "pstack/skills/principle-a/SKILL.md": "---\nname: principle-a\ndescription: A principle.\n---\n",
             "pstack/skills/make-bot-ui/SKILL.md": "---\nname: make-bot-ui\ndescription: Cursor only.\n---\n",
             "advisor/README.md": "advisor v1\n",
             "cursor-team-kit/skills/deslop/SKILL.md": "---\nname: deslop\ndescription: Deslop.\n---\n",
@@ -99,6 +107,7 @@ class MergeTest(unittest.TestCase):
         git(self.fork, "rm", "-rq", "pstack/skills/make-bot-ui", "advisor", "cursor-team-kit/skills/fix-ci", ".github/workflows/validate-plugins.yml")
         write(self.fork, "pstack/skills/how/SKILL.md", HOW_PORTED)
         write(self.fork, "README.md", README_OURS)
+        write(self.fork, "pstack/README.md", PSTACK_README_OURS)
         write(self.fork, ".github/workflows/pstack-ci.yml", "name: pstack ci\n")
         write(self.fork, ".github/dependabot.yml", DEPENDABOT_OURS)
         write(self.fork, ".github/SECURITY.md", "# Security policy\n")
@@ -108,9 +117,11 @@ class MergeTest(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp)
 
-    def upstream_commit(self, changes):
+    def upstream_commit(self, changes, executable=()):
         for path, text in changes.items():
             write(self.upstream, path, text)
+        for path in executable:
+            os.chmod(os.path.join(self.upstream, path), 0o755)
         git(self.upstream, "add", "-A")
         git(self.upstream, "commit", "-qm", "upstream change")
         git(self.fork, "fetch", "-q", "origin")
@@ -193,6 +204,52 @@ class MergeTest(unittest.TestCase):
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("failed", proc.stderr)
         self.assertFalse(os.path.exists(report))
+
+    def test_a_rewritten_readme_row_is_flagged_for_a_skill_our_readme_names(self):
+        self.upstream_commit({
+            "pstack/README.md": PSTACK_README_UPSTREAM.replace("you want code explained.", "you want code explained, with diagrams.")
+                                                      .replace("you want a principle.", "you want a sharper principle."),
+            "pstack/skills/how/SKILL.md": HOW_UPSTREAM.replace("Explore the codebase.", "Explore the codebase first."),
+        })
+        code, report, out = self.merge()
+        self.assertEqual((code, report["status"]), (0, "merged"), out)
+        self.assertEqual(len(report["to_port"]), 1, report["to_port"])
+        self.assertIn("README row for how", report["to_port"][0])
+        self.assertIn("with diagrams", report["to_port"][0])
+        with open(os.path.join(self.fork, "pstack/README.md")) as f:
+            self.assertEqual(f.read(), PSTACK_README_OURS)
+
+    def test_a_skill_that_needs_a_new_runtime_is_flagged(self):
+        self.upstream_commit({
+            "pstack/skills/how/scripts/explain.mjs": "console.log('how, again');\n",
+            "pstack/skills/how/scripts/explain.ts": "console.log('how');\n",
+            "pstack/skills/how/scripts/how": "#!/usr/bin/env -S deno run\necho 'how needs Node 22.18 or later' >&2\n",
+            "pstack/skills/how/scripts/package.json": '{"engines": {"node": ">=22.18"}}\n',
+        }, executable=["pstack/skills/how/scripts/how"])
+        code, report, out = self.merge()
+        self.assertEqual((code, report["status"]), (0, "merged"), out)
+        self.assertEqual(len(report["to_port"]), 2, report["to_port"])
+        kinds, version = report["to_port"]
+        for needed in ["TypeScript (scripts/explain.ts)", "deno (scripts/how)", "node >=22.18 (scripts/package.json)"]:
+            self.assertIn(needed, kinds)
+        self.assertNotIn("JavaScript", kinds)
+        self.assertIn("runtime version to pstack/skills/how/scripts/how", version)
+
+    def test_a_binary_executable_does_not_stop_the_triage(self):
+        os.makedirs(os.path.join(self.upstream, "pstack/skills/how/bin"))
+        with open(os.path.join(self.upstream, "pstack/skills/how/bin/tool"), "wb") as f:
+            f.write(b"\x7fELF\xff\xfe\x00\n\xff")
+        self.upstream_commit({}, executable=["pstack/skills/how/bin/tool"])
+        code, report, out = self.merge()
+        self.assertEqual((code, report["status"], report["to_port"]), (0, "merged", []), out)
+
+    def test_tests_need_no_runtime_check(self):
+        self.upstream_commit({
+            "pstack/skills/how/scripts/test/explain.test.ts": "// needs Node 22.18 or later\n",
+            "pstack/skills/how/scripts/test/helpers.ts": "export {};\n",
+        })
+        code, report, out = self.merge()
+        self.assertEqual((code, report["status"], report["to_port"]), (0, "merged", []), out)
 
     def test_a_real_conflict_is_left_for_a_person(self):
         write(self.fork, "pstack/skills/how/SKILL.md", HOW_PORTED.replace("Spawn a `Task` subagent.", "Spawn a subagent."))

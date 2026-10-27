@@ -14,7 +14,11 @@
    pointer back under the title. Every other conflict is listed for a person.
 4. Reports what needs porting: new upstream skills (with their Cursor
    terms), ported skills that disappeared, and Cursor terms that upstream
-   newly added to skills already ported.
+   newly added to skills already ported. Because the port keeps its own
+   pstack/README.md, it also reports each skill our README names whose row
+   upstream rewrote in its README, and each ported skill that now needs a
+   runtime it did not: a new kind of script, interpreter, or package.json
+   engine, or an added line that names a runtime version.
 
 --report writes the outcome as JSON for CI: status (up_to_date, merged,
 or conflicts), the incoming commit, and what was dropped, resolved, left
@@ -46,6 +50,13 @@ CURSOR_TERMS = re.compile(
     r"\bTask\b|AskQuestion|\.cursor/|pstack-models\.mdc|grok-|gpt-5\.6|claude-opus-5-5-max|agent-transcripts"
     r"|cursor-team-kit|create-skill|environment: \"cloud\"|cloud_base_branch|Cursor's built-in"
 )
+# What a user needs to run a skill's scripts. Tests are left out, since only upstream's CI runs them.
+SCRIPT_KINDS = {".ts": "TypeScript", ".mts": "TypeScript", ".cts": "TypeScript", ".tsx": "TypeScript",
+                ".js": "JavaScript", ".mjs": "JavaScript", ".cjs": "JavaScript", ".py": "Python",
+                ".rb": "Ruby", ".go": "Go", ".rs": "Rust"}
+RUNTIME_VERSION = re.compile(r"\b(?:Node(?:\.js)?|Bun|Deno|Python|Java|Ruby|Go)\s+v?\d+(?:\.\d+)+")
+TEST_PATH = re.compile(r"(^|/)(tests?|__tests__)/|\.(test|spec)\.")
+README_ROW = re.compile(r"^\|.*\(\./skills/([^/)]+)/SKILL\.md\)")
 
 
 def git(repo, *args, check=True):
@@ -132,6 +143,59 @@ def installed_skills(repo):
     return set(block.split())
 
 
+def upstream_readme_rows(repo, commit):
+    """Upstream's pstack/README.md table rows at commit, by the skill each one links to."""
+    rows = {}
+    for line in (show(repo, f"{commit}:pstack/README.md") or "").splitlines():
+        match = README_ROW.match(line)
+        if match:
+            rows[match.group(1)] = line
+    return rows
+
+
+def readme_names(repo):
+    """The skills our pstack/README.md names one by one in its skill column."""
+    names = set()
+    for line in (show(repo, "HEAD:pstack/README.md") or "").splitlines():
+        cells = line.split("|")
+        if line.startswith("|") and len(cells) > 3:
+            names.update(re.findall(r"`([a-z0-9-]+)`", cells[2]))
+    return names
+
+
+def script_kinds(repo, commit, skill):
+    """What a skill's scripts at commit run on, each with the first file that needs it."""
+    prefix = f"pstack/skills/{skill}/"
+    kinds = {}
+    for entry in git(repo, "ls-tree", "-r", "-z", commit, "--", prefix).split("\0"):
+        if not entry:
+            continue
+        meta, path = entry.split("\t", 1)
+        mode, _, blob = meta.split()
+        rel = path[len(prefix):]
+        if TEST_PATH.search(rel):
+            continue
+        kind = SCRIPT_KINDS.get(os.path.splitext(rel)[1])
+        if kind:
+            kinds.setdefault(kind, rel)
+        if mode == "100755":
+            # Read bytes, since an executable can be a binary that is not valid text.
+            content = subprocess.run(["git", "-C", repo, "cat-file", "-p", blob], capture_output=True).stdout
+            first = content.split(b"\n", 1)[0].decode(errors="replace")
+            words = first[2:].split() if first.startswith("#!") else []
+            if words and os.path.basename(words[0]) == "env":
+                words = [w for w in words[1:] if not w.startswith("-")]
+            if words:
+                kinds.setdefault(os.path.basename(words[0]), rel)
+        if os.path.basename(rel) == "package.json":
+            try:
+                for name, wanted in json.loads(git(repo, "cat-file", "-p", blob)).get("engines", {}).items():
+                    kinds.setdefault(f"{name} {wanted}", rel)
+            except (ValueError, AttributeError):
+                pass
+    return kinds
+
+
 def triage(repo, base, incoming):
     ported = installed_skills(repo)
     before = set(git(repo, "ls-tree", "--name-only", f"{base}:pstack/skills").split())
@@ -147,6 +211,20 @@ def triage(repo, base, incoming):
     for skill in sorted((before - upstream) & ported):
         report.append(f"ported skill {skill} is gone upstream. Remove it from SKILLS in port/install.sh.")
 
+    rows_before, rows_after = upstream_readme_rows(repo, base), upstream_readme_rows(repo, incoming)
+    for skill in sorted(ported & readme_names(repo)):
+        if skill in rows_before and skill in rows_after and rows_before[skill] != rows_after[skill]:
+            summary = [cell.strip() for cell in rows_after[skill].split("|") if cell.strip()][-1]
+            report.append(f"upstream rewrote its README row for {skill}, and the merge keeps our pstack/README.md. "
+                          f"Check our row against upstream's: {summary[:160]}")
+
+    for skill in sorted(ported & before & upstream):
+        old, new = script_kinds(repo, base, skill), script_kinds(repo, incoming, skill)
+        added = [f"{kind} ({new[kind]})" for kind in sorted(set(new) - set(old))]
+        if added:
+            report.append(f"upstream's {skill} now has scripts that need {', '.join(added)}. "
+                          "Check what runs them, and the Requirements in pstack/README.md.")
+
     diff = git(repo, "diff", base, incoming, "--", "pstack/skills")
     current = None
     for line in diff.splitlines():
@@ -156,6 +234,8 @@ def triage(repo, base, incoming):
             skill = current.split("/")[2] if current.count("/") >= 3 else None
             if skill in ported and CURSOR_TERMS.search(line):
                 report.append(f"upstream added a Cursor term to {current}: {line[1:].strip()[:160]}")
+            if skill in ported and RUNTIME_VERSION.search(line) and not TEST_PATH.search(current):
+                report.append(f"upstream added a runtime version to {current}, so check the Requirements in pstack/README.md: {line[1:].strip()[:160]}")
     return report
 
 

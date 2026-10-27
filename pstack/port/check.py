@@ -33,6 +33,8 @@ CURSOR_TERMS = [
     (r"agent-transcripts|\.cursor/projects", r"agent-transcripts/", "Cursor transcripts"),
     (r"\.cursor/worktrees", r"`\.cursor/worktrees/", "Cursor worktrees"),
     (r"Application Support/Cursor", r"`~/Library/Application Support/Cursor`", "Cursor's app data"),
+    (r"plugins/cache", r"`~/\.claude/plugins/cache/`", "the plugin cache"),
+    (r"\bembed(?:ded)? (?:the )?video", r"embedded in the reply", "a video embedded in the reply"),
     (r"grok-\d|gpt-5\.6-sol-max|claude-opus-5-5-(max|xhigh)|xhigh-fast", r"Cursor slugs", "Cursor model slugs"),
     (r"cursor-team-kit", r"`cursor-team-kit`", "cursor-team-kit skills"),
     (r"`create-skill`|\bcreate-skill\b", r"`create-skill`", "Cursor's create-skill"),

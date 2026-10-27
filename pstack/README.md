@@ -10,6 +10,7 @@ The skill text is upstream's. Each ported skill carries one extra line that poin
 - `git`, `python3`, and `gh`.
 - Optional: Claude Code, logged in, if you want Codex panels to seat Claude models. See [Using Claude Code and Codex together](#using-claude-code-and-codex-together).
 - Optional: `bun` for the Babysit and Orchestrate helper scripts, and `tmux` for `control-cli`.
+- Optional, for `statechart`: Bun 1.1.5 or later, Node 22.18 to 22.x, Node 23.6 or later, or Deno 2.0 or later to run it, and `mise` to install TLC and Java on its first run. With `TLA2TOOLS` set to a `tla2tools.jar`, it uses that jar and the `java` on your `PATH` (or `JAVA`) instead.
 
 ## Set up
 
@@ -72,7 +73,7 @@ For anything that needs rigor, start with `poteto-mode`. It matches the task to 
 | | `maintain-verification-skill` | Keeping that skill accurate as the app changes. |
 | | `create-formal-verification-skill` | A project skill that formally verifies one property where a bug costs the most and tests reach the least, such as a race, a retry, or a state machine. |
 | | `maintain-formal-verification-skill` | Keeping that skill true to the code after the code changes, and telling drift in the model from a bug in the code. |
-| | `statechart` | A Mermaid chart of what the user sees, generated from a TLA+ model, with each bug TLC finds drawn as a numbered path, or a TLA+ skeleton from a chart a PM agreed to. |
+| | `statechart` | A TLA+ model checked with TLC and drawn as a Mermaid statechart of what the user sees, with each state that breaks a rule marked and the shortest path to each one. |
 | | `control-ui`, `control-cli` | Driving a browser or Electron UI, or a CLI or TUI, to capture evidence. |
 | | `show-me-your-work` | A decision log for long or unattended runs. |
 | | `benchmark-checklist` | Vetting a performance number before you report or act on it. |

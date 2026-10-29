@@ -56,12 +56,12 @@ For anything that needs rigor, start with `poteto-mode`. It matches the task to 
 | | `blast-radius` | What a change could break outside the diff. |
 | | `bro` | The last message again, in plain language. |
 | | `ketchup` | What changed in the chat since your last message, briefly, with pictures where they help and each decision you need to make. |
-| | `ketchup-video` | The same catch-up as a short silent video of slides, with each decision you need to make as text under it. |
+| | `ketchup-video` | The same catch-up as a short subtitled video of slides, with each decision you need to make as text under it. |
 | | `in-your-own-words` | Your goal and the problem played back before the agent starts. |
 | | `sharpen` | The task sharpened before the agent starts: how an expert would approach it, what you are really after, and how much to specify. |
 | Design and review | `architect` | Types and module shape before code, from competing sketches. |
 | | `arena` | Several candidates for the same task, merged into the best one. |
-| | `interrogate` | Adversarial review of a diff by a panel of models. |
+| | `interrogate` | Adversarial review of a diff by a panel of models, keeping only findings a run proves. |
 | | `swarm` | Parallel workers for coverage, races, or exploration. |
 | Build and clean up | `pstack-tdd` | A failing test first, then the fix. |
 | | `no-comments` | Removing narration comments. |

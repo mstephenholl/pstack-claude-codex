@@ -68,10 +68,11 @@ Skill text names Cursor slugs (`grok-4.7-xhigh-fast`, `claude-opus-5-5-xhigh`) a
 An entry is `<harness>:<model>[@<effort>]`, where harness is `claude` or `codex`, or `inherit-parent` (also written `auto`), which means a native subagent on your own model. An entry is native when its harness is yours and foreign otherwise.
 
 - Panel roles (`arena runners`, `architect runners`, `interrogate reviewers`) get one seat per entry.
-- `arena cross-judge pool` and `reflect tooling` get one seat. Prefer a foreign entry, since that is a different model family from yours. For `reflect tooling`, stay native when the transcript's lookups need MCP servers only your harness has configured.
+- `arena cross-judge pool` gets one seat, and only a foreign entry fills it, since a foreign entry is the only kind from a model family other than yours. Try the foreign entries in pool order, then the foreign entries of the role's default below. A native or `inherit-parent` entry never judges. When none of them runs, skip the judge as the arena skill says.
+- `reflect tooling` gets one seat. Prefer a foreign entry, since that is a different model family from yours. Stay native when the transcript's lookups need MCP servers only your harness has configured.
 - Every other role takes the first native entry. With no native entry, it takes the first entry and runs it foreign.
 
-If the file has the line `foreign seats: off`, never run a foreign entry, because a foreign seat sends code or transcripts to the other vendor. Drop every foreign entry before resolving. Panels then seat only their native entries, and the pool and `reflect tooling` take their first native entry. A role left with no native entry runs as `inherit-parent`. Without that line, foreign seats are on.
+If the file has the line `foreign seats: off`, never run a foreign entry, because a foreign seat sends code or transcripts to the other vendor. Drop every foreign entry before resolving. Panels then seat only their native entries, `reflect tooling` takes its first native entry, and arena skips the cross-judge. A role left with no native entry runs as `inherit-parent`. Without that line, foreign seats are on.
 
 Run a native entry as a subagent with its model and effort, as the Tools table says. Run a foreign entry through the other harness's CLI, below.
 

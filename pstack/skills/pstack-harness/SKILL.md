@@ -68,10 +68,11 @@ Skill text names Cursor slugs (`grok-4.7-xhigh-fast`, `claude-opus-5-5-xhigh`) a
 An entry is `<harness>:<model>[@<effort>]`, where harness is `claude` or `codex`, or `inherit-parent` (also written `auto`), which means a native subagent on your own model. An entry is native when its harness is yours and foreign otherwise.
 
 - Panel roles (`arena runners`, `architect runners`, `interrogate reviewers`) get one seat per entry.
-- `arena cross-judge pool` and `reflect tooling` get one seat. Prefer a foreign entry, since that is a different model family from yours. For `reflect tooling`, stay native when the transcript's lookups need MCP servers only your harness has configured.
+- `arena cross-judge pool` gets one seat, and only a foreign entry fills it, since a foreign entry is the only kind from a model family other than yours. Try the foreign entries in pool order, then the foreign entries of the role's default below. A native or `inherit-parent` entry never judges. When none of them runs, skip the judge as the arena skill says.
+- `reflect tooling` gets one seat. Prefer a foreign entry, since that is a different model family from yours. Stay native when the transcript's lookups need MCP servers only your harness has configured.
 - Every other role takes the first native entry. With no native entry, it takes the first entry and runs it foreign.
 
-If the file has the line `foreign seats: off`, never run a foreign entry, because a foreign seat sends code or transcripts to the other vendor. Drop every foreign entry before resolving. Panels then seat only their native entries, and the pool and `reflect tooling` take their first native entry. A role left with no native entry runs as `inherit-parent`. Without that line, foreign seats are on.
+If the file has the line `foreign seats: off`, never run a foreign entry, because a foreign seat sends code or transcripts to the other vendor. Drop every foreign entry before resolving. Panels then seat only their native entries, `reflect tooling` takes its first native entry, and arena skips the cross-judge. A role left with no native entry runs as `inherit-parent`. Without that line, foreign seats are on.
 
 Run a native entry as a subagent with its model and effort, as the Tools table says. Run a foreign entry through the other harness's CLI, below.
 
@@ -133,8 +134,9 @@ For Orchestrate, Autopilot, Autonomous run, Multi-phase plan, Session pickup, an
 - **Waiting on CI inside a subagent.** `gh pr checks <pr> --watch`. In Claude Code, run it with `run_in_background` or through `Monitor`, since foreground `sleep` is blocked.
 - **Reader and verifier lanes.** A lane that checks out a SHA gets its own detached worktree, `git worktree add --detach /tmp/swarm-<pr>/wt-<n> <sha>`, with its own port and browser profile. Remove it when done. Never `git checkout` in the shared checkout.
 - **Trunk copies of pstack.** A plan line like `git show origin/main:pstack/skills/<path>` assumes pstack lives in the repo you are working on. It does not here. Read `~/.agents/pstack/skills/<path>` from disk and keep the literal line in plans, since `check-plan.mjs` requires it. Run that checker as `node ~/.agents/pstack/skills/poteto-mode/scripts/check-plan.mjs <plan.md>`.
-- **The agent store.** Where a playbook says "the current agent's store (path in the system prompt)", use `~/.agents/pstack-store/<repo-slug>/`. Pass `--store` to every `orch` call, because shell state does not persist between calls.
-- **Frontier without `gt`.** `orch frontier set` shells out to Graphite's `gt`. Without it, build `frontier.json` from `gh pr list --json number,headRefName,headRefOid,baseRefName`.
+- **The agent store.** Where a playbook names an agent's store (path in the system prompt), the agent store, or the Project store, use `~/.agents/pstack-store/<repo-slug>/`.
+- **The Project tracker.** Keep it as `notes.md` in the agent store.
+- **PR and CI event subscriptions.** Watch each PR's checks instead. Claude Code: run `gh pr checks <pr> --watch` with `run_in_background`, or through `Monitor`, so its exit notifies you. Codex: check `gh pr view` and `gh pr checks` on each tick.
 - **Screenshots and video.** A terminal shows neither. Record with `control-ui`'s CDP screencast or `screencapture -v`, then give file paths or attach them to a PR comment.
 - **After a restart.** Nothing local survives. Resume the coordinator (`claude --continue`, `codex resume`) and re-arm the tick. Treat every in-flight unit as dead. Check `git worktree list`, commit and push dirty worktrees as `wip:`, then respawn. For an overnight run, keep the Mac awake with `caffeinate -i`.
 
@@ -147,4 +149,4 @@ For Orchestrate, Autopilot, Autonomous run, Multi-phase plan, Session pickup, an
 - Origin. Use it only when `command -v origin` succeeds, as the playbooks say. Otherwise `gh`.
 - A built-in PR tool. An MCP server is not one. Where a playbook says to use the run's built-in PR tool, use the resolved forge.
 - Bugbot is a GitHub app. It applies only where the repo has it installed.
-- `scripts/watch-pr` and `scripts/orch` need `bun`. Their first run installs dependencies, which needs network. Without `bun`, read PR state with `gh pr view --json` and `gh pr checks`, and keep the orchestrate ledger as a TSV by hand.
+- `scripts/watch-pr` needs `bun`. Its first run installs dependencies, which needs network. Without `bun`, read PR state with `gh pr view --json` and `gh pr checks`.

@@ -56,12 +56,12 @@ For anything that needs rigor, start with `poteto-mode`. It matches the task to 
 | | `blast-radius` | What a change could break outside the diff. |
 | | `bro` | The last message again, in plain language. |
 | | `ketchup` | What changed in the chat since your last message, briefly, with pictures where they help and each decision you need to make. |
-| | `ketchup-video` | The same catch-up as a short silent video of slides, with each decision you need to make as text under it. |
+| | `ketchup-video` | The same catch-up as a short subtitled video of slides, with each decision you need to make as text under it. |
 | | `in-your-own-words` | Your goal and the problem played back before the agent starts. |
 | | `sharpen` | The task sharpened before the agent starts: how an expert would approach it, what you are really after, and how much to specify. |
 | Design and review | `architect` | Types and module shape before code, from competing sketches. |
 | | `arena` | Several candidates for the same task, merged into the best one. |
-| | `interrogate` | Adversarial review of a diff by a panel of models. |
+| | `interrogate` | Adversarial review of a diff by a panel of models, keeping only findings a run proves. |
 | | `swarm` | Parallel workers for coverage, races, or exploration. |
 | Build and clean up | `pstack-tdd` | A failing test first, then the fix. |
 | | `no-comments` | Removing narration comments. |
@@ -87,7 +87,7 @@ For anything that needs rigor, start with `poteto-mode`. It matches the task to 
 
 `~/.agents/pstack-models.md` holds one line per role, and each entry names a harness and a model, as in `codex:gpt-6-astra@xhigh` or `claude:opus@xhigh`. Coding roles default to `gpt-6.1-sol`, and judgment and writing roles default to `gpt-6-astra`. Codex runs each role on its own `codex:` entry.
 
-The panels in `interrogate`, `arena`, and `architect` seat one reviewer per entry. With `foreign seats: on` and Claude Code installed, `pstack configure` adds a Claude entry to each role, Opus for judgment and Sonnet for code, and a panel seats it by running `claude -p`. That sends the diff, the task, or the session transcript to Anthropic. With `foreign seats: off`, everything stays in Codex, and each panel seats two Codex models instead. Change it with `pstack configure --foreign-seats on|off` or `$setup-pstack`.
+The panels in `interrogate`, `arena`, and `architect` seat one reviewer per entry. With `foreign seats: on` and Claude Code installed, `pstack configure` adds a Claude entry to each role, Opus for judgment and Sonnet for code, and a panel seats it by running `claude -p`. That sends the diff, the task, or the session transcript to Anthropic. With `foreign seats: off`, everything stays in Codex, and each panel seats two Codex models instead. `arena` then skips its cross-judge, because the judge must come from a model family other than the session's. Change it with `pstack configure --foreign-seats on|off` or `$setup-pstack`.
 
 Each entry's effort is where a subagent starts. Skills raise or lower it to fit the job, but keep the entry's model.
 

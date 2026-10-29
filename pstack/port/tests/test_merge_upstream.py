@@ -117,14 +117,22 @@ class MergeTest(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp)
 
-    def upstream_commit(self, changes, executable=()):
+    def upstream_commit(self, changes, executable=(), deleted=()):
         for path, text in changes.items():
             write(self.upstream, path, text)
         for path in executable:
             os.chmod(os.path.join(self.upstream, path), 0o755)
+        for path in deleted:
+            git(self.upstream, "rm", "-q", path)
         git(self.upstream, "add", "-A")
         git(self.upstream, "commit", "-qm", "upstream change")
         git(self.fork, "fetch", "-q", "origin")
+
+    def fork_commit(self, changes):
+        for path, text in changes.items():
+            write(self.fork, path, text)
+        git(self.fork, "add", "-A")
+        git(self.fork, "commit", "-qm", "port change")
 
     def merge(self):
         report = os.path.join(self.tmp, "report.json")
@@ -250,6 +258,43 @@ class MergeTest(unittest.TestCase):
         })
         code, report, out = self.merge()
         self.assertEqual((code, report["status"], report["to_port"]), (0, "merged", []), out)
+
+    def test_a_line_of_ours_that_names_a_deleted_path_is_flagged(self):
+        self.fork_commit({
+            ".agents/skills/verify-how/SKILL.md": "# Verify how\n\nChecks `pstack/skills/how/scripts/explain.mjs`.\n",
+            "pstack/skills/pstack-harness/SKILL.md": "# Harness\n\n- `how/scripts` needs node.\n- `how/scripts2` is another folder.\n- `scripts/explain.mjs.bak` is a backup.\n",
+        })
+        self.upstream_commit({"pstack/skills/how/SKILL.md": HOW_UPSTREAM + "\nRun `scripts/explain.mjs`.\n"},
+                             deleted=["pstack/skills/how/scripts/explain.mjs"])
+        code, report, out = self.merge()
+        self.assertEqual((code, report["status"]), (0, "merged"), out)
+        self.assertEqual(report["to_port"], [
+            "upstream deleted pstack/skills/how/scripts/explain.mjs, and our .agents/skills/verify-how/SKILL.md still names it: "
+            "Checks `pstack/skills/how/scripts/explain.mjs`.",
+            "upstream deleted pstack/skills/how/scripts, and our pstack/skills/pstack-harness/SKILL.md still names it: "
+            "- `how/scripts` needs node.",
+        ])
+
+    def test_an_ending_that_a_kept_path_shares_does_not_count(self):
+        self.fork_commit({
+            "pstack/port/scripts/explain.mjs": "console.log('ours');\n",
+            "pstack/port/README.md": "Run `scripts/explain.mjs`.\n\nUpstream's `how/scripts/explain.mjs` is gone.\n",
+        })
+        self.upstream_commit({}, deleted=["pstack/skills/how/scripts/explain.mjs"])
+        code, report, out = self.merge()
+        self.assertEqual((code, report["status"]), (0, "merged"), out)
+        self.assertEqual(len(report["to_port"]), 1, report["to_port"])
+        self.assertIn("upstream deleted pstack/skills/how/scripts/explain.mjs, and our pstack/port/README.md", report["to_port"][0])
+        self.assertIn("is gone", report["to_port"][0])
+
+    def test_a_renamed_path_counts_as_deleted(self):
+        self.fork_commit({".agents/skills/verify-how/SKILL.md": "Checks `how/scripts/explain.mjs`.\n"})
+        self.upstream_commit({"pstack/skills/how/scripts/explain.js": "console.log('how');\n"},
+                             deleted=["pstack/skills/how/scripts/explain.mjs"])
+        code, report, out = self.merge()
+        self.assertEqual((code, report["status"]), (0, "merged"), out)
+        self.assertEqual(len(report["to_port"]), 1, report["to_port"])
+        self.assertIn("upstream deleted pstack/skills/how/scripts/explain.mjs, and our .agents/skills/verify-how/SKILL.md", report["to_port"][0])
 
     def test_a_real_conflict_is_left_for_a_person(self):
         write(self.fork, "pstack/skills/how/SKILL.md", HOW_PORTED.replace("Spawn a `Task` subagent.", "Spawn a subagent."))

@@ -18,7 +18,9 @@
    pstack/README.md, it also reports each skill our README names whose row
    upstream rewrote in its README, and each ported skill that now needs a
    runtime it did not: a new kind of script, interpreter, or package.json
-   engine, or an added line that names a runtime version.
+   engine, or an added line that names a runtime version. Last, it reports
+   each file of ours with a line that names a path the merge deletes, such
+   as a harness note or a project skill about a script upstream removed.
 
 --report writes the outcome as JSON for CI: status (up_to_date, merged,
 or conflicts), the incoming commit, and what was dropped, resolved, left
@@ -196,6 +198,51 @@ def script_kinds(repo, commit, skill):
     return kinds
 
 
+def ancestors(path):
+    parts = path.split("/")
+    return ["/".join(parts[:i]) for i in range(1, len(parts))]
+
+
+def endings(path):
+    """Every ending of path that keeps at least two of its parts."""
+    parts = path.split("/")
+    return ["/".join(parts[i:]) for i in range(len(parts) - 1)]
+
+
+def deleted_names(repo, incoming):
+    """Each of our files with a line that names a path this merge deletes, with the first such line.
+
+    A path is named by any ending of two or more of its parts that no path left in the port shares.
+    Our lines are the ones upstream's version lacks, so upstream's own text never counts.
+    """
+    gone = set(git(repo, "diff", "--cached", "--name-only", "--no-renames", "--diff-filter=D", "HEAD").splitlines())
+    if not gone:
+        return []
+    present = set(git(repo, "ls-files").splitlines())
+    present |= {d for path in present for d in ancestors(path)}
+    gone |= {d for path in gone for d in ancestors(path)} - present
+    taken = {e for path in present for e in endings(path)}
+    owners = {}
+    for path in gone:
+        for ending in endings(path):
+            owners.setdefault(ending, set()).add(path)
+    names = {ending: paths.pop() for ending, paths in owners.items() if len(paths) == 1 and ending not in taken}
+    if not names:
+        return []
+    pattern = re.compile(r"(?<![\w.-])(" + "|".join(map(re.escape, sorted(names, key=len, reverse=True))) + r")(?![\w-]|\.\w)")
+
+    found = {}
+    current = None
+    for line in git(repo, "diff", "--cached", "--no-renames", "-U0", incoming).splitlines():
+        if line.startswith("+++ "):
+            current = line[6:] if line.startswith("+++ b/") else None
+        elif line.startswith("+") and current:
+            text = line[1:]
+            for match in pattern.finditer(text):
+                found.setdefault((current, names[match.group(1)]), text[max(0, match.start() - 60):].strip()[:160])
+    return [f"upstream deleted {path}, and our {ours} still names it: {line}" for (ours, path), line in sorted(found.items())]
+
+
 def triage(repo, base, incoming):
     ported = installed_skills(repo)
     before = set(git(repo, "ls-tree", "--name-only", f"{base}:pstack/skills").split())
@@ -236,7 +283,7 @@ def triage(repo, base, incoming):
                 report.append(f"upstream added a Cursor term to {current}: {line[1:].strip()[:160]}")
             if skill in ported and RUNTIME_VERSION.search(line) and not TEST_PATH.search(current):
                 report.append(f"upstream added a runtime version to {current}, so check the Requirements in pstack/README.md: {line[1:].strip()[:160]}")
-    return report
+    return report + deleted_names(repo, incoming)
 
 
 def merge_head(repo):

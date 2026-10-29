@@ -44,6 +44,8 @@ The script fetches the cursor/plugins remote, merges its `main` without committi
 
 Because the merge keeps our `pstack/README.md`, the script also reports what can leave it out of date. It reports each skill that our README names whose row upstream rewrote in its own README. It reports each ported skill that now needs a runtime it did not: a new kind of script, such as TypeScript, a new interpreter in a `#!` line, a new `engines` entry in a `package.json`, or an added line that names a runtime version, such as `Node 22.18`. It skips test files, because only upstream's CI runs them. A skill that starts to need a newer version of a runtime it already uses shows up only through such a line or `engines` entry.
 
+The script also reports each file of ours with a line that names a path the merge deletes, because nothing else catches a stale reference outside the skills upstream maintains, such as a harness note or a project skill about a script upstream removed. A rename counts as a deletion. A line names a path through any ending of two or more of its parts, such as `scripts/orch`, unless a path the port still has ends the same way. A line is ours when upstream's version of the file lacks it, so upstream's own text never counts.
+
 After resolving, run `install.sh` and then the smoke test. Then commit the merge, push the branch, and open a pull request. Merge it with a merge commit, because a squash would drop upstream's history from `main`. The title is `chore(upstream): merge cursor/plugins`, which passes the `pstack PR` check and is a patch release. Name the repository in `GH_REPO`, since the clone also has cursor/plugins as a remote.
 
 ```sh

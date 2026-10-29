@@ -134,8 +134,9 @@ For Orchestrate, Autopilot, Autonomous run, Multi-phase plan, Session pickup, an
 - **Waiting on CI inside a subagent.** `gh pr checks <pr> --watch`. In Claude Code, run it with `run_in_background` or through `Monitor`, since foreground `sleep` is blocked.
 - **Reader and verifier lanes.** A lane that checks out a SHA gets its own detached worktree, `git worktree add --detach /tmp/swarm-<pr>/wt-<n> <sha>`, with its own port and browser profile. Remove it when done. Never `git checkout` in the shared checkout.
 - **Trunk copies of pstack.** A plan line like `git show origin/main:pstack/skills/<path>` assumes pstack lives in the repo you are working on. It does not here. Read `~/.agents/pstack/skills/<path>` from disk and keep the literal line in plans, since `check-plan.mjs` requires it. Run that checker as `node ~/.agents/pstack/skills/poteto-mode/scripts/check-plan.mjs <plan.md>`.
-- **The agent store.** Where a playbook says "the current agent's store (path in the system prompt)", use `~/.agents/pstack-store/<repo-slug>/`. Pass `--store` to every `orch` call, because shell state does not persist between calls.
-- **Frontier without `gt`.** `orch frontier set` shells out to Graphite's `gt`. Without it, build `frontier.json` from `gh pr list --json number,headRefName,headRefOid,baseRefName`.
+- **The agent store.** Where a playbook names an agent's store (path in the system prompt), the agent store, or the Project store, use `~/.agents/pstack-store/<repo-slug>/`.
+- **The Project tracker.** Keep it as `notes.md` in the agent store.
+- **PR and CI event subscriptions.** Watch each PR's checks instead. Claude Code: run `gh pr checks <pr> --watch` with `run_in_background`, or through `Monitor`, so its exit notifies you. Codex: check `gh pr view` and `gh pr checks` on each tick.
 - **Screenshots and video.** A terminal shows neither. Record with `control-ui`'s CDP screencast or `screencapture -v`, then give file paths or attach them to a PR comment.
 - **After a restart.** Nothing local survives. Resume the coordinator (`claude --continue`, `codex resume`) and re-arm the tick. Treat every in-flight unit as dead. Check `git worktree list`, commit and push dirty worktrees as `wip:`, then respawn. For an overnight run, keep the Mac awake with `caffeinate -i`.
 
@@ -148,4 +149,4 @@ For Orchestrate, Autopilot, Autonomous run, Multi-phase plan, Session pickup, an
 - Origin. Use it only when `command -v origin` succeeds, as the playbooks say. Otherwise `gh`.
 - A built-in PR tool. An MCP server is not one. Where a playbook says to use the run's built-in PR tool, use the resolved forge.
 - Bugbot is a GitHub app. It applies only where the repo has it installed.
-- `scripts/watch-pr` and `scripts/orch` need `bun`. Their first run installs dependencies, which needs network. Without `bun`, read PR state with `gh pr view --json` and `gh pr checks`, and keep the orchestrate ledger as a TSV by hand.
+- `scripts/watch-pr` needs `bun`. Its first run installs dependencies, which needs network. Without `bun`, read PR state with `gh pr view --json` and `gh pr checks`.

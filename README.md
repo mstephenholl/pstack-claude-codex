@@ -31,6 +31,8 @@ In Claude Code, run:
 
 Then choose models with `/pstack:setup-pstack`, and start with `/pstack:poteto-mode <task>`. Upstream maintains that plugin. See [its README](https://github.com/cursor/plugins/tree/main/pstack).
 
+Claude Code leaves auto-update off for third-party marketplaces, so the plugin stays on the version you installed. To turn it on, run `/plugin`, open **Marketplaces**, select `cursor-plugins`, and choose **Enable auto-update**. To update once, run `claude plugin update pstack@cursor-plugins` and restart Claude Code.
+
 ## More
 
 - [`pstack/README.md`](pstack/README.md) covers the `pstack` command, using the skills, models, running both harnesses, and differences from Cursor's pstack.

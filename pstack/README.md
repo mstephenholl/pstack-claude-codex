@@ -100,7 +100,7 @@ Run pstack from two sources, one per harness:
 | **Install** | `/plugin marketplace add cursor/plugins`, then `/plugin install pstack@cursor-plugins` | The bootstrap one-liner in [Set up](#set-up) |
 | **Run a skill** | `/pstack:poteto-mode` | `$pstack:poteto-mode` |
 | **Models** | `/pstack:setup-pstack` writes `~/.claude/rules/pstack-models.md` | `pstack configure` writes `~/.agents/pstack-models.md` |
-| **Update** | Update the plugin through `/plugin` | `pstack update` |
+| **Update** | `claude plugin update pstack@cursor-plugins`, or turn on auto-update. See **Updates** below. | `pstack update` |
 | **Maintained by** | Upstream, the same day a skill changes | This fork, through a daily sync with upstream |
 
 The two installs do not share anything, so set them up in either order. The bootstrap installs this fork for Codex only, even with Claude Code on your PATH, so you never get two copies of the skills in Claude Code.
@@ -109,6 +109,7 @@ Some things work differently across the two:
 
 - **Mixed panels run from Codex.** Turn on foreign seats in `pstack configure`, and Codex panels seat Claude through `claude -p` next to OpenAI models. Codex asks for escalation the first time, because `claude` runs outside its sandbox. Upstream's Claude Code plugin runs any non-Claude role on the session's own model, so a panel in Claude Code seats only Claude models.
 - **Two models files.** Each harness reads its own, so a change in one does not reach the other. Rerun the setup in the harness you want to change.
+- **Updates.** Claude Code leaves auto-update off for third-party marketplaces, so upstream's plugin stays on the version you installed. To turn it on, run `/plugin`, open **Marketplaces**, select `cursor-plugins`, and choose **Enable auto-update**. To update once, run `claude plugin update pstack@cursor-plugins` and restart Claude Code. `pstack update` updates only the Codex install.
 - **Session history.** In Codex, `recall`, `reflect`, `automate-me`, and `show-me-your-work` read both your Codex and Claude Code sessions through `port/transcripts.py`. In Claude Code, upstream's plugin reads only that workspace's Claude Code sessions.
 - **Team-kit skills.** This fork ships `deslop`, `control-ui`, and `control-cli` for Codex. Upstream's Claude Code plugin does not include them, though some `poteto-mode` playbooks call them.
 - **Skill names.** Upstream's plugin keeps upstream's `tdd` and `teach`, as `/pstack:tdd` and `/pstack:teach`. In Codex they are `pstack-tdd` and `pstack-teach`.

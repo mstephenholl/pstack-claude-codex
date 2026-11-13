@@ -22,7 +22,7 @@ The skill text is upstream's. Each ported skill carries one extra line that poin
 
    This clones pstack to `~/.local/share/pstack`, checks out the newest release, puts the `pstack` command in `~/.local/bin`, and runs `pstack install`. That links each skill into `~/.codex/skills` and points `~/.agents/pstack` at the clone. It installs for Codex even when Claude Code is also on your PATH, because Claude Code gets pstack from upstream's plugin. It never overwrites a file it did not create.
 
-2. Choose models with `pstack configure`. It detects the models Codex offers, asks for a reasoning budget and whether to allow foreign seats (see [Models](#models)), and writes `~/.agents/pstack-models.md`. In a Codex session, `$setup-pstack` walks you through the same choices. For scripts, pass `--budget`, `--foreign-seats`, and `--set "ROLE=ENTRY"` with `--yes`.
+2. Choose models with `pstack configure`. It detects the models Codex offers and asks for a reasoning budget, whether to allow foreign seats (see [Models](#models)), and whether poteto-mode opens PRs as drafts. Then it writes `~/.agents/pstack-models.md`. In a Codex session, `$setup-pstack` walks you through the same choices. For scripts, pass `--budget`, `--foreign-seats`, `--pull-requests`, and `--set "ROLE=ENTRY"` with `--yes`.
 
 3. Check the result with `pstack doctor`. It prints each problem with the command that fixes it.
 
@@ -31,7 +31,7 @@ To install from a clone you manage yourself, clone the repository anywhere outsi
 | Command | What it does |
 |---|---|
 | `pstack install [--codex] [--claude] [--claude-read-rules]` | Links the skills, and puts `pstack` on your PATH. It remembers which harnesses you chose. With no flags and no saved choice, it installs for Codex. `--claude` installs this fork into Claude Code as well, which most people should not need. See [Installing this fork into Claude Code](#installing-this-fork-into-claude-code). |
-| `pstack configure` | Chooses models, the reasoning budget, and foreign seats. `--dry-run --json` previews without writing. |
+| `pstack configure` | Chooses models, the reasoning budget, foreign seats, and whether PRs open as drafts. `--dry-run --json` previews without writing. |
 | `pstack doctor` | Checks links, the models file against the models you have, and optional tools. |
 | `pstack update [--head]` | Moves an install to the newest release, or fast-forwards a clone that tracks a branch, then reinstalls and runs `doctor`. `--head` switches a release install to the branch tip. |
 | `pstack uninstall [--purge]` | Removes every link and generated agent, and the `pstack` command. `--purge` also deletes the models file, and the clone if the bootstrap created it. |

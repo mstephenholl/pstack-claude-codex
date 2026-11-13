@@ -1,6 +1,6 @@
 ---
 name: setup-pstack
-description: Configure which models pstack uses per role and at what reasoning budget, across Claude Code and Codex. Detects your available models and writes ~/.agents/pstack-models.md, which overrides the skill defaults. Use for /setup-pstack, "configure pstack models", "pstack budget", or changing pstack's model choices.
+description: Configure which models pstack uses per role, at what reasoning budget, and whether poteto-mode opens PRs as drafts, across Claude Code and Codex. Detects your available models and writes ~/.agents/pstack-models.md, which overrides the skill defaults. Use for /setup-pstack, "configure pstack models", "pstack budget", "pstack draft PRs", or changing pstack's model choices.
 ---
 
 # Setup pstack
@@ -11,18 +11,19 @@ Configure pstack's models through the `pstack` command, which detects models, va
 
 ### 1. Load the current state
 
-Run `~/.agents/pstack/port/pstack configure --dry-run --json --yes`. It reports the models each harness offers (`detected`), the current `budget` and `foreign_seats`, every role's entries, roles whose model is unavailable (`needs_choice`), roles the user changed from the defaults (`kept_overrides`), and retired lines it will drop (`dropped`). It writes nothing.
+Run `~/.agents/pstack/port/pstack configure --dry-run --json --yes`. It reports the models each harness offers (`detected`), the current `budget`, `foreign_seats`, and `pull_requests`, every role's entries, roles whose model is unavailable (`needs_choice`), roles the user changed from the defaults (`kept_overrides`), and retired lines it will drop (`dropped`). It writes nothing.
 
-### 2. Ask for a budget and foreign seats
+### 2. Ask for a budget, foreign seats, and PR readiness
 
 Use your harness's question tool, and name the current value of each.
 
 - Budget, with these labels: `unlimited — max reasoning`, `large — xhigh reasoning`, `medium — high reasoning`, `small — medium reasoning`. They map to `--budget unlimited|large|medium|small`.
 - Foreign seats. A foreign seat runs a role on the other harness through its CLI, which sends code or the session transcript to that vendor. Offer `on — panels and reflect's tooling lens mix Claude and OpenAI models` and `off — everything stays in the harness you run it in`. With `off`, each panel seats two native models so it still gets two reviewers.
+- Pull requests. Offer `ready` and `draft`. poteto-mode opens every PR in the chosen state. A request in a task overrides it for that task.
 
 ### 3. Preview and confirm
 
-Run `~/.agents/pstack/port/pstack configure --budget <budget> --foreign-seats <on|off> --dry-run --json --yes`. Show every role with its entries, each `needs_choice` item, each kept override, and each dropped line. Ask whether to accept as-is or change specific roles, offering the `detected` models plus `inherit-parent`. Panel roles (`arena runners`, `architect runners`, `interrogate reviewers`) run one seat per entry, so the list length sets the count.
+Run `~/.agents/pstack/port/pstack configure --budget <budget> --foreign-seats <on|off> --pull-requests <ready|draft> --dry-run --json --yes`. Show every role with its entries, each `needs_choice` item, each kept override, and each dropped line. Ask whether to accept as-is or change specific roles, offering the `detected` models plus `inherit-parent`. Panel roles (`arena runners`, `architect runners`, `interrogate reviewers`) run one seat per entry, so the list length sets the count.
 
 Add one `--set "<role>=<entry>, <entry>"` per change, for example `--set "swarm workers=claude:haiku, codex:gpt-6-luna"`. Rerun the preview until nothing needs a choice. Never pass `--force` unless the user asks for a model the detection missed.
 

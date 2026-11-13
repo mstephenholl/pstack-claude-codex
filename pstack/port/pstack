@@ -5,8 +5,8 @@ Claude Code gets pstack from upstream's plugin. `--claude` still installs this
 fork there, and a Codex panel can seat Claude through its CLI either way.
 
   pstack install [--claude] [--codex] [--claude-read-rules]
-  pstack configure [--budget BUDGET] [--foreign-seats on|off] [--set "ROLE=ENTRY, ..."]
-                   [--dry-run] [--json] [--yes]
+  pstack configure [--budget BUDGET] [--foreign-seats on|off] [--pull-requests ready|draft]
+                   [--set "ROLE=ENTRY, ..."] [--dry-run] [--json] [--yes]
   pstack doctor [--json] [--offline]
   pstack update [--head]
   pstack uninstall [--purge] [--yes]
@@ -180,7 +180,7 @@ def format_entry(e):
 
 
 def read_models_file(path=MODELS):
-    config = {"budget": None, "foreign_seats": None, "roles": {}, "unknown": [], "bad": []}
+    config = {"budget": None, "foreign_seats": None, "pull_requests": None, "roles": {}, "unknown": [], "bad": []}
     if not os.path.exists(path):
         return None
     with open(path) as f:
@@ -196,6 +196,8 @@ def read_models_file(path=MODELS):
             key = key.strip()
             if key == "foreign seats":
                 config["foreign_seats"] = value.strip()
+            elif key == "pull requests":
+                config["pull_requests"] = value.strip()
             elif key in ROLE_NAMES:
                 try:
                     config["roles"][key] = [parse_entry(v) for v in value.split(",") if v.strip()]
@@ -225,7 +227,7 @@ def clamp_effort(target, supported):
     return (below or ranked)[-1]
 
 
-def plan(current, detected, harnesses, budget, foreign_seats, sets):
+def plan(current, detected, harnesses, budget, foreign_seats, pull_requests, sets):
     """The roles to write, and what a person has to decide."""
     old_budget = (current or {}).get("budget")
     old_foreign = (current or {}).get("foreign_seats") or "on"
@@ -263,13 +265,14 @@ def plan(current, detected, harnesses, budget, foreign_seats, sets):
         "budget": budget,
         "effort": target,
         "foreign_seats": foreign_seats,
+        "pull_requests": pull_requests,
         "harnesses": harnesses,
         "roles": {r: [format_entry(e) for e in entries] for r, entries in roles.items()},
         "kept_overrides": kept,
         "added_defaults_for": [h for h in HARNESSES if h in added],
         "needs_choice": needs_choice,
         "dropped": dropped,
-        "previous": {"budget": old_budget, "foreign_seats": (current or {}).get("foreign_seats")},
+        "previous": {"budget": old_budget, "foreign_seats": (current or {}).get("foreign_seats"), "pull_requests": (current or {}).get("pull_requests")},
     }
 
 
@@ -280,6 +283,7 @@ def write_models_file(result, path=MODELS):
         "# Entry: <harness>:<model>[@<effort>], or inherit-parent. pstack-harness says how each role resolves.",
         f"# budget: {result['budget']} ({result['effort']})",
         f"foreign seats: {result['foreign_seats']}",
+        f"pull requests: {result['pull_requests']}",
     ]
     lines += [f"{role}: {', '.join(entries)}" for role, entries in result["roles"].items()]
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -411,16 +415,21 @@ def cmd_configure(args):
             fail(str(e))
     budget = args.budget or (current or {}).get("budget")
     foreign = args.foreign_seats or (current or {}).get("foreign_seats")
+    pull_requests = args.pull_requests or (current or {}).get("pull_requests")
     interactive = sys.stdin.isatty() and not args.json and not args.yes
     if interactive and not args.budget:
         budget = ask("Reasoning budget", list(BUDGETS), budget or "large")
     if interactive and not args.foreign_seats:
         print("Foreign seats let a panel run the other vendor's model through its CLI, which sends code and transcripts to that vendor.")
         foreign = ask("Foreign seats", ["on", "off"], foreign or "off")
+    if interactive and not args.pull_requests:
+        print("Pull requests: poteto-mode opens them as drafts or ready for review.")
+        pull_requests = ask("Pull requests", ["ready", "draft"], pull_requests or "ready")
     budget = budget if budget in BUDGETS else "large"
     foreign = foreign if foreign in ("on", "off") else "off"
+    pull_requests = pull_requests if pull_requests in ("ready", "draft") else "ready"
 
-    result = plan(current, detected, harnesses, budget, foreign, sets)
+    result = plan(current, detected, harnesses, budget, foreign, pull_requests, sets)
     result["detected"] = {h: sorted(detected.get(h, {}).get("models", {})) for h in HARNESSES}
     result["path"] = MODELS
     blocked = bool(result["needs_choice"]) and not args.force
@@ -449,7 +458,7 @@ def cmd_configure(args):
             print(f"added {harness}'s defaults to each choice kept, because no entry in the models file could run in {harness}")
         for key in result["dropped"]:
             print(f"dropped retired line {key!r}")
-        print(f"\n{'Wrote' if write else 'Did not write'} {MODELS} (budget {budget}, foreign seats {foreign}).")
+        print(f"\n{'Wrote' if write else 'Did not write'} {MODELS} (budget {budget}, foreign seats {foreign}, pull requests {pull_requests}).")
     return 2 if blocked else 0
 
 
@@ -514,7 +523,7 @@ def cmd_doctor(args):
     if config is None:
         note("warn", f"no models file at {MODELS}; skills use pstack-harness's defaults", "run `pstack configure`")
     else:
-        note("ok", f"models file: budget {config['budget'] or 'unrecorded'}, foreign seats {config['foreign_seats'] or 'on (default)'}")
+        note("ok", f"models file: budget {config['budget'] or 'unrecorded'}, foreign seats {config['foreign_seats'] or 'on (default)'}, pull requests {config['pull_requests'] or 'ready (default)'}")
         seated = seated_harnesses(harnesses, detected, config["foreign_seats"] or "on")
         for harness in harnesses_without_entries(config, harnesses, seated, config["foreign_seats"] or "on"):
             note("warn", f"no entry in the models file can run in {harness}, so every role runs on its session model",
@@ -680,7 +689,7 @@ def cmd_status(args):
     print(f"clone: {ROOT}")
     print(f"harnesses: {', '.join(selected_harnesses()) or 'none selected'}" + ("" if state else " (not installed yet)"))
     if config:
-        print(f"models: {MODELS} (budget {config['budget'] or 'unrecorded'}, foreign seats {config['foreign_seats'] or 'on'})")
+        print(f"models: {MODELS} (budget {config['budget'] or 'unrecorded'}, foreign seats {config['foreign_seats'] or 'on'}, pull requests {config['pull_requests'] or 'ready'})")
     else:
         print("models: not configured; run `pstack configure`")
     return 0
@@ -696,9 +705,10 @@ def main():
     p.add_argument("--claude-read-rules", action="store_true", help="let Claude Code read pstack's files without asking, via ~/.claude/settings.json")
     p.set_defaults(run=cmd_install)
 
-    p = sub.add_parser("configure", help="choose models, reasoning budget, and foreign seats")
+    p = sub.add_parser("configure", help="choose models, reasoning budget, foreign seats, and pull request readiness")
     p.add_argument("--budget", choices=list(BUDGETS))
     p.add_argument("--foreign-seats", choices=["on", "off"])
+    p.add_argument("--pull-requests", choices=["ready", "draft"])
     p.add_argument("--set", action="append", metavar="ROLE=ENTRY[, ENTRY]", help="override one role, e.g. \"swarm workers=claude:haiku\"")
     p.add_argument("--dry-run", action="store_true", help="show the result without writing it")
     p.add_argument("--json", action="store_true", help="print the result as JSON")

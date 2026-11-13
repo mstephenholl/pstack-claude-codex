@@ -241,6 +241,31 @@ class CliTest(Env):
         self.assertEqual(roles["swarm workers"], "claude:haiku@medium")
         self.assertNotIn("how critics", roles)
 
+    def test_configure_writes_pull_requests_ready_by_default(self):
+        self.pstack("install", "--claude", "--codex")
+        self.pstack("configure", "--yes")
+        self.assertEqual(self.models_file()["pull requests"], "ready")
+
+    def test_configure_keeps_a_draft_pull_requests_line(self):
+        self.pstack("install", "--claude", "--codex")
+        self.pstack("configure", "--pull-requests", "draft", "--yes")
+        self.assertEqual(self.models_file()["pull requests"], "draft")
+        out = json.loads(self.pstack("configure", "--yes", "--json").stdout)
+        self.assertEqual(out["dropped"], [])
+        self.assertEqual(self.models_file()["pull requests"], "draft")
+        self.pstack("configure", "--pull-requests", "ready", "--yes")
+        self.assertEqual(self.models_file()["pull requests"], "ready")
+
+    def test_configure_dry_run_reports_pull_requests(self):
+        self.pstack("install", "--claude", "--codex")
+        self.pstack("configure", "--pull-requests", "draft", "--yes")
+        out = json.loads(self.pstack("configure", "--dry-run", "--json").stdout)
+        self.assertEqual(out["pull_requests"], "draft")
+        self.assertEqual(out["previous"]["pull_requests"], "draft")
+        out = json.loads(self.pstack("configure", "--pull-requests", "ready", "--dry-run", "--json").stdout)
+        self.assertEqual(out["pull_requests"], "ready")
+        self.assertEqual(self.models_file()["pull requests"], "draft")
+
     def test_configure_will_not_write_an_unavailable_model(self):
         self.pstack("install")
         proc = self.pstack("configure", "--set", "bug-fix=codex:gpt-9", "--yes", code=2)

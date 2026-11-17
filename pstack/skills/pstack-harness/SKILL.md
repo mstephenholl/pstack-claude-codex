@@ -79,12 +79,12 @@ Skills say to pick each subagent's reasoning level and fast or standard speed fo
 
 | Role | Default | Effort |
 |---|---|---|
-| `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb` | `claude:sonnet, codex:gpt-6.1-sol` | `xhigh` |
-| `swarm workers` | `claude:sonnet, codex:gpt-6.1-sol` | `high` |
+| `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb` | `claude:sonnet, codex:gpt-6.2-sol` | `xhigh` |
+| `swarm workers` | `claude:sonnet, codex:gpt-6.2-sol` | `high` |
 | `judgment and prose` | `claude:opus, codex:gpt-6-astra` | `xhigh` |
 | `arena runners`, `interrogate reviewers`, `arena cross-judge pool` | `claude:opus, codex:gpt-6-astra` | `high` |
 
-If a model is rejected, use that role's default for the same harness and say so.
+If a model is rejected, use that role's default for the same harness and say so. A Codex that rejects `gpt-6.2-sol` is older than the model, so use `gpt-6.1-sol` there.
 
 ## Foreign seats
 

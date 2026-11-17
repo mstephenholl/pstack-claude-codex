@@ -40,7 +40,12 @@ UPSTREAM_PLUGIN = "in Claude Code, run `/plugin marketplace add cursor/plugins`,
 BUDGETS = {"large": 0, "medium": 1, "small": 2}
 EFFORTS = ["low", "medium", "high", "xhigh", "max"]
 TOP_EFFORT = "xhigh"
-DEFAULT_MODELS = {"claude": {"judgment": "opus", "code": "sonnet"}, "codex": {"judgment": "gpt-6-astra", "code": "gpt-6.1-sol"}}
+# Each harness's default model per kind, newest first. configure takes the first one the harness offers,
+# and counts an entry on any of them as a default, so a rerun moves it to a newer one once it appears.
+DEFAULT_MODELS = {
+    "claude": {"judgment": ["opus"], "code": ["sonnet"]},
+    "codex": {"judgment": ["gpt-6-astra"], "code": ["gpt-6.2-sol", "gpt-6.1-sol"]},
+}
 CLAUDE_ALIASES = ["opus", "sonnet", "haiku", "fable"]
 # Role, the kind of model it defaults to, and its effort under the large budget. Panels seat one reviewer per entry.
 ROLES = [
@@ -202,15 +207,26 @@ def read_models_file(path=MODELS):
     return config
 
 
-def default_entries(kind, harnesses, foreign_seats):
+def default_slots(kind, harnesses, foreign_seats):
+    """The harness and model kind of each default entry. A panel seats a judgment model per harness, and a code model too with foreign seats off."""
     if kind == "panel":
-        entries = []
-        for h in harnesses:
-            entries.append((h, DEFAULT_MODELS[h]["judgment"]))
-            if foreign_seats == "off":
-                entries.append((h, DEFAULT_MODELS[h]["code"]))
-        return entries
-    return [(h, DEFAULT_MODELS[h][kind]) for h in harnesses]
+        kinds = ("judgment", "code") if foreign_seats == "off" else ("judgment",)
+        return [(h, k) for h in harnesses for k in kinds]
+    return [(h, kind) for h in harnesses]
+
+
+def default_entries(kind, harnesses, foreign_seats, detected):
+    def pick(harness, slot):
+        offered = detected.get(harness, {}).get("models", {})
+        return next((m for m in DEFAULT_MODELS[harness][slot] if m in offered), DEFAULT_MODELS[harness][slot][0])
+
+    return [(h, pick(h, slot)) for h, slot in default_slots(kind, harnesses, foreign_seats)]
+
+
+def is_default(pairs, kind, harnesses, foreign_seats):
+    """Whether a role's entries are its defaults, counting any model a default has been."""
+    slots = default_slots(kind, harnesses, foreign_seats)
+    return len(pairs) == len(slots) and all(h == sh and m in DEFAULT_MODELS[sh][slot] for (h, m), (sh, slot) in zip(pairs, slots))
 
 
 def clamp_effort(target, supported):
@@ -235,15 +251,15 @@ def plan(current, detected, harnesses, budget, foreign_seats, pull_requests, set
     missing = harnesses_without_entries(current, harnesses, seated, foreign_seats)
     for role, kind, default in ROLES:
         target = budget_effort(default, budget)
-        pairs = default_entries(kind, seated, foreign_seats)
+        pairs = default_entries(kind, seated, foreign_seats, detected)
         existing = (current or {}).get("roles", {}).get(role)
         if existing is not None:
-            was_default = [(e["harness"], e["model"]) for e in existing] == default_entries(kind, old_seated, old_foreign)
+            was_default = is_default([(e["harness"], e["model"]) for e in existing], kind, old_seated, old_foreign)
             if not was_default:
                 pairs = [(e["harness"], e["model"]) for e in existing]
                 kept.append(role)
                 for h in missing if role not in sets else []:
-                    pairs += default_entries(kind, [h], foreign_seats)
+                    pairs += default_entries(kind, [h], foreign_seats, detected)
                     added.add(h)
         if role in sets:
             pairs = [(e["harness"], e["model"]) for e in sets[role]]

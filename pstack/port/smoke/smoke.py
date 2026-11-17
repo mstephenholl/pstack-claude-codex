@@ -217,11 +217,11 @@ class Evidence:
 # Each check takes Evidence and returns (ok, detail).
 
 FOREIGN = {"claude": "codex", "codex": "claude"}
-MODELS = {  # role family -> model the native harness should spawn, per ~/.agents/pstack-models.md
+MODELS = {  # role family -> pattern for the model the native harness should spawn, per ~/.agents/pstack-models.md
     ("claude", "judgment"): "opus",
     ("claude", "code"): "sonnet",
-    ("codex", "judgment"): "gpt-6-astra",
-    ("codex", "code"): "gpt-6.1-sol",
+    ("codex", "judgment"): r"gpt-6-astra",
+    ("codex", "code"): r"gpt-6\.2-sol|gpt-6\.1-sol",  # configure falls back to 6.1 on a Codex that lacks 6.2
 }
 
 
@@ -246,10 +246,10 @@ def spawned(family, types=rf"pstack-effort-{EFFORT}"):
     def check(ev):
         model = MODELS[(ev.harness, family)]
         if ev.harness == "claude":
-            ok = ev.called(rf'"subagent_type":\s*"(?:{types})".*"model":\s*"{model}"|"model":\s*"{model}".*"subagent_type":\s*"(?:{types})"', name="Agent")
+            ok = ev.called(rf'"subagent_type":\s*"(?:{types})".*"model":\s*"(?:{model})"|"model":\s*"(?:{model})".*"subagent_type":\s*"(?:{types})"', name="Agent")
         else:
-            ok = ev.called(rf'"model":\s*"{re.escape(model)}".*"reasoning_effort":\s*"{EFFORT}"|"reasoning_effort":\s*"{EFFORT}".*"model":\s*"{re.escape(model)}"', name=r"(collaboration\.)?spawn_agent")
-        return ok, f"spawned a {family} subagent on {model}"
+            ok = ev.called(rf'"model":\s*"(?:{model})".*"reasoning_effort":\s*"{EFFORT}"|"reasoning_effort":\s*"{EFFORT}".*"model":\s*"(?:{model})"', name=r"(collaboration\.)?spawn_agent")
+        return ok, f"spawned a {family} subagent on {model.replace(chr(92), '')}"
     return check
 
 
@@ -276,7 +276,7 @@ def no_foreign_seat(ev):
     return not crossed, f"kept every seat in {ev.harness} (foreign seats off)"
 
 
-PANEL_MODELS = {"claude": ("opus", "sonnet"), "codex": ("gpt-6-astra", "gpt-6.1-sol")}
+PANEL_MODELS = {"claude": ("opus", "sonnet"), "codex": (MODELS[("codex", "judgment")], MODELS[("codex", "code")])}  # patterns
 
 
 def panel_seats(ev):
@@ -286,11 +286,11 @@ def panel_seats(ev):
     missing = []
     for model in PANEL_MODELS[ev.harness]:
         if ev.harness == "claude":
-            ok = ev.called(rf'"model":\s*"{model}"', name="Agent")
+            ok = ev.called(rf'"model":\s*"(?:{model})"', name="Agent")
         else:
-            ok = ev.called(rf'"model":\s*"{re.escape(model)}"', name=r"(collaboration\.)?spawn_agent")
+            ok = ev.called(rf'"model":\s*"(?:{model})"', name=r"(collaboration\.)?spawn_agent")
         if not ok:
-            missing.append(model)
+            missing.append(model.replace(chr(92), ""))
     return not missing, "seated both native panel models" + (f" (missing {', '.join(missing)})" if missing else "")
 
 

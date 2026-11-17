@@ -124,16 +124,15 @@ Raw logs live at `~/.claude/projects/<slug>/<session-id>.jsonl` (Claude Code) an
 
 ## Long runs
 
-For Orchestrate, Autopilot, Autonomous run, Multi-phase plan, Session pickup, and Pause safely:
+For Autopilot, Autonomous run, Multi-phase plan, Session pickup, and Pause safely:
 
 - **Scale.** Everything runs on this machine. Keep 3 to 5 writers and 1 to 3 live UI lanes in flight. Default to a flat tree where you drain every worker yourself. A Claude Code subagent ends with its turn, so a sub-coordinator is one blocking pass per wave, not a durable layer.
 - **Resume an agent.** Claude Code: `SendMessage` to its id or name, a deferred tool you load first. Codex: `send_message` to a running agent, `followup_task` for more work. Either one restarts an idle agent, so never resume one just to check on it.
 - **Check on an agent.** Claude Code has no agent list. Record each id from the spawn result in the unit's row, then probe side effects: `git -C <worktree> log -1`, `gh pr view`. No notification and no side effect past the expected runtime means stuck. Codex: `list_agents`, or `wait_agent` with a short `timeout_ms`.
 - **Stop an agent.** Claude Code: `TaskStop` on its task id. Codex: `interrupt_agent`. For a hold, stop it, write the stop in the standing orders, and respawn from the brief and branch on release. The worktree survives.
-- **The hourly tick.** Claude Code: `/loop 1h <tick prompt>`. Codex: with agents in flight, `wait_agent` with a one-hour `timeout_ms`, which returns early on a completion. With none in flight, `sleep 3600` with the command timeout set above it. A plan keeps the literal `/loop 1h` line in Codex too, since `check-plan.mjs` requires it.
+- **The hourly tick.** Claude Code: `/loop 1h <tick prompt>`. Codex: with agents in flight, `wait_agent` with a one-hour `timeout_ms`, which returns early on a completion. With none in flight, `sleep 3600` with the command timeout set above it.
 - **Waiting on CI inside a subagent.** `gh pr checks <pr> --watch`. In Claude Code, run it with `run_in_background` or through `Monitor`, since foreground `sleep` is blocked.
 - **Reader and verifier lanes.** A lane that checks out a SHA gets its own detached worktree, `git worktree add --detach /tmp/swarm-<pr>/wt-<n> <sha>`, with its own port and browser profile. Remove it when done. Never `git checkout` in the shared checkout.
-- **Trunk copies of pstack.** A plan line like `git show origin/main:pstack/skills/<path>` assumes pstack lives in the repo you are working on. It does not here. Read `~/.agents/pstack/skills/<path>` from disk and keep the literal line in plans, since `check-plan.mjs` requires it. Run that checker as `node ~/.agents/pstack/skills/poteto-mode/scripts/check-plan.mjs <plan.md>`.
 - **The agent store.** Where a playbook names an agent's store (path in the system prompt), the agent store, or the Project store, use `~/.agents/pstack-store/<repo-slug>/`.
 - **The Project tracker.** Keep it as `notes.md` in the agent store.
 - **PR and CI event subscriptions.** Watch each PR's checks instead. Claude Code: run `gh pr checks <pr> --watch` with `run_in_background`, or through `Monitor`, so its exit notifies you. Codex: check `gh pr view` and `gh pr checks` on each tick.

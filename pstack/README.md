@@ -9,7 +9,7 @@ The skill text is upstream's. Each ported skill carries one extra line that poin
 - Codex.
 - `git`, `python3`, and `gh`.
 - Optional: Claude Code, logged in, if you want Codex panels to seat Claude models. See [Using Claude Code and Codex together](#using-claude-code-and-codex-together).
-- Optional: `bun` for the Babysit and Orchestrate helper scripts, and `tmux` for `control-cli`.
+- Optional: `bun` for the Babysit helper script, and `tmux` for `control-cli`.
 - Optional, for `statechart`: Bun 1.1.5 or later, Node 22.18 to 22.x, Node 23.6 or later, or Deno 2.0 or later to run it, and `mise` to install TLC and Java on its first run. With `TLA2TOOLS` set to a `tla2tools.jar`, it uses that jar and the `java` on your `PATH` (or `JAVA`) instead.
 
 ## Set up
@@ -50,7 +50,7 @@ For anything that needs rigor, start with `poteto-mode`. It matches the task to 
 | Start here | `poteto-mode` | Rigorous work of any kind. It picks the playbook. |
 | | `figure-it-out` | Large or unusual work no playbook fits. It designs an auditable plan first. |
 | Understand | `how` | How code works, and where something should live. |
-| | `why` | Why code is the way it is, from git history and whatever MCP sources you have. |
+| | `why` | Why code is the way it is, from the commits and PR discussions that shaped it, and other sources when that trail is thin. |
 | | `pstack-teach` | A plain explanation built from `how` and `why`. |
 | | `recall` | Catching up on recent work from your Codex and Claude Code sessions. |
 | | `blast-radius` | What a change could break outside the diff. |
@@ -58,7 +58,7 @@ For anything that needs rigor, start with `poteto-mode`. It matches the task to 
 | | `ketchup` | What changed in the chat since your last message, briefly, with pictures where they help and each decision you need to make. |
 | | `ketchup-video` | The same catch-up as a short subtitled video of slides, with each decision you need to make as text under it. |
 | | `in-your-own-words` | Your goal and the problem played back before the agent starts. |
-| | `sharpen` | The task sharpened before the agent starts: how an expert would approach it, what you are really after, and how much to specify. |
+| | `sharpen` | Your prompt made deeper, not bigger, before you send it: what an expert would add, the raw material they'd start from, and how to check the result. Choices an experiment can settle go to a prototype. |
 | Design and review | `architect` | Types and module shape before code, from competing sketches. |
 | | `arena` | Several candidates for the same task, merged into the best one. |
 | | `interrogate` | Adversarial review of a diff by a panel of models, keeping only findings a run proves. |
@@ -131,7 +131,7 @@ Earlier releases of this fork also installed into Claude Code. To switch Claude 
 ## Differences from Cursor's pstack
 
 - `tdd` and `teach` are renamed `pstack-tdd` and `pstack-teach` to avoid clashing with other skills of the same name.
-- There are no cloud agents. Every worker runs locally, and a worker that writes gets its own git worktree. The Orchestrate and Autopilot playbooks run on one supervised machine.
+- There are no cloud agents. Every worker runs locally, and a worker that writes gets its own git worktree. The Autopilot playbooks run on one supervised machine.
 - Subagents run at standard speed. Codex has no fast mode per subagent, so skills that pick a subagent's reasoning level and speed change only its effort.
 - `recall`, `reflect`, `automate-me`, and `show-me-your-work` read Codex and Claude Code session logs through `port/transcripts.py`.
 - The `comment-sicko` and `poteto-agent` agents are Claude Code agents. Codex starts a default agent with their instructions.

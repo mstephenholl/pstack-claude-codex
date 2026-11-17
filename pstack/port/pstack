@@ -552,7 +552,7 @@ def cmd_doctor(args):
         allow = claude_settings().get("permissions", {}).get("allow", [])
         if not all(r in allow for r in claude_read_rules()):
             note("warn", "Claude Code will ask before reading pstack's files", "run `pstack install --claude-read-rules`")
-    for tool, why in (("gh", "the PR playbooks"), ("bun", "the Babysit and Orchestrate helper scripts")):
+    for tool, why in (("gh", "the PR playbooks"), ("bun", "the Babysit helper script")):
         if not shutil.which(tool):
             note("warn", f"{tool} is not installed; {why} need it")
 

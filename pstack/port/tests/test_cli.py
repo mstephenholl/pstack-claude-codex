@@ -97,16 +97,18 @@ class CliTest(Env):
 
     def test_coding_roles_move_to_gpt_6_2_sol_once_codex_offers_it(self):
         self.pstack("install", "--codex")
-        self.pstack("configure", "--budget", "large", "--foreign-seats", "off", "--set", "hillclimb=codex:gpt-6-astra", "--yes")
-        self.assertEqual(self.models_file()["bug-fix"], "codex:gpt-6.1-sol@medium")
+        self.pstack("configure", "--budget", "large", "--foreign-seats", "off", "--set", "hillclimb=codex:gpt-6-astra", "--set", "bug-fix=codex:gpt-6.1-sol, codex:gpt-6-astra", "--yes")
+        self.assertEqual(self.models_file()["feature, refactoring"], "codex:gpt-6.1-sol@medium")
         detected = json.loads(json.dumps(DETECTED))
         detected["codex"]["models"].update({"gpt-6.2-sol": ALL, "gpt-6.2-astra": ALL})
         with open(self.env["PSTACK_DETECT_JSON"], "w") as f:
             json.dump(detected, f)
         out = json.loads(self.pstack("configure", "--json", "--yes").stdout)
-        self.assertEqual(out["kept_overrides"], ["hillclimb"])
+        self.assertEqual(out["kept_overrides"], ["bug-fix", "hillclimb"])
+        self.assertEqual(out["upgraded"], ["bug-fix: codex:gpt-6.1-sol -> codex:gpt-6.2-sol"])
         roles = self.models_file()
-        self.assertEqual(roles["bug-fix"], "codex:gpt-6.2-sol@xhigh")
+        self.assertEqual(roles["feature, refactoring"], "codex:gpt-6.2-sol@xhigh")
+        self.assertEqual(roles["bug-fix"], "codex:gpt-6.2-sol@xhigh, codex:gpt-6-astra@xhigh")
         self.assertEqual(roles["swarm workers"], "codex:gpt-6.2-sol@high")
         self.assertEqual(roles["hillclimb"], "codex:gpt-6-astra@xhigh")
         self.assertEqual(roles["judgment and prose"], "codex:gpt-6-astra@xhigh")

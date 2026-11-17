@@ -223,6 +223,16 @@ def default_entries(kind, harnesses, foreign_seats, detected):
     return [(h, pick(h, slot)) for h, slot in default_slots(kind, harnesses, foreign_seats)]
 
 
+def newest_default(harness, model, kind, detected):
+    """For a model that is an older default of the role's kind, the newest default the harness offers. Any other model stays."""
+    offered = detected.get(harness, {}).get("models", {})
+    for slot in ("judgment", "code") if kind == "panel" else (kind,):
+        choices = DEFAULT_MODELS.get(harness, {}).get(slot, [])
+        if model in choices:
+            return next((m for m in choices if m in offered), model)
+    return model
+
+
 def is_default(pairs, kind, harnesses, foreign_seats):
     """Whether a role's entries are its defaults, counting any model a default has been."""
     slots = default_slots(kind, harnesses, foreign_seats)
@@ -246,7 +256,7 @@ def plan(current, detected, harnesses, budget, foreign_seats, pull_requests, set
     """The roles to write, and what a person has to decide."""
     old_budget = (current or {}).get("budget")
     old_foreign = (current or {}).get("foreign_seats") or "on"
-    roles, kept, needs_choice, added = {}, [], [], set()
+    roles, kept, needs_choice, added, upgraded = {}, [], [], set(), []
     seated, old_seated = seated_harnesses(harnesses, detected, foreign_seats), seated_harnesses(harnesses, detected, old_foreign)
     missing = harnesses_without_entries(current, harnesses, seated, foreign_seats)
     for role, kind, default in ROLES:
@@ -256,7 +266,9 @@ def plan(current, detected, harnesses, budget, foreign_seats, pull_requests, set
         if existing is not None:
             was_default = is_default([(e["harness"], e["model"]) for e in existing], kind, old_seated, old_foreign)
             if not was_default:
-                pairs = [(e["harness"], e["model"]) for e in existing]
+                pairs = [(e["harness"], newest_default(e["harness"], e["model"], kind, detected)) for e in existing]
+                if role not in sets:
+                    upgraded += [f"{role}: {e['harness']}:{e['model']} -> {h}:{m}" for e, (h, m) in zip(existing, pairs) if m != e["model"]]
                 kept.append(role)
                 for h in missing if role not in sets else []:
                     pairs += default_entries(kind, [h], foreign_seats, detected)
@@ -287,6 +299,7 @@ def plan(current, detected, harnesses, budget, foreign_seats, pull_requests, set
         "added_defaults_for": [h for h in HARNESSES if h in added],
         "needs_choice": needs_choice,
         "dropped": dropped,
+        "upgraded": upgraded,
         "previous": {"budget": old_budget, "foreign_seats": (current or {}).get("foreign_seats"), "pull_requests": (current or {}).get("pull_requests")},
     }
 
@@ -477,6 +490,8 @@ def cmd_configure(args):
             print(f"added {harness}'s defaults to each choice kept, because no entry in the models file could run in {harness}")
         for key in result["dropped"]:
             print(f"dropped retired line {key!r}")
+        for line in result["upgraded"]:
+            print(f"moved to a newer default: {line}")
         print(f"\n{'Wrote' if write else 'Did not write'} {MODELS} (budget {budget}, foreign seats {foreign}, pull requests {pull_requests}).")
     return 2 if blocked else 0
 

@@ -239,7 +239,7 @@ def no_cursor_slugs(ev):
     return not used, "used no Cursor model slug"
 
 
-EFFORT = r"(?:low|medium|high|xhigh|max)"  # skills move a subagent's effort off its entry to fit the job
+EFFORT = r"(?:low|medium|high|xhigh)"  # skills move a subagent's effort off its entry to fit the job, never above xhigh
 
 
 def spawned(family, types=rf"pstack-effort-{EFFORT}"):
@@ -371,8 +371,8 @@ SCENARIOS = {
     ),
     "why": dict(
         skill="why",
-        task="Why does get_user cache results in a module-level dict? For this smoke test, run only the source control investigator, record every other evidence category as skipped for the smoke test, and still run the synthesizer. Do not query any MCP.",
-        checks=[read_harness, read_models, spawned("code"), spawned("judgment"), answer_matches(r"source", "cites sources")],
+        task="Why does get_user cache results in a module-level dict? Answer from this repo's git history. Do not query any MCP.",
+        checks=[read_harness, answer_matches(r"commit", "cites the commits")],
     ),
     "interrogate": dict(
         skill="interrogate",
@@ -417,15 +417,12 @@ SCENARIOS = {
     "reflect": dict(
         skill="reflect",
         warmup="Make `python3 cli.py get` with no user id print a usage line instead of crashing. Keep the change small.",
-        task="Reflect on this session. It is headless: present the synthesizer's Accepted, Rejected, and Backlog output and stop without applying any edit.",
+        task="Reflect on this session. It is headless: present the Accepted, Rejected, and Backlog lists and stop without applying any edit.",
         checks=[
             read_harness,
-            read_models,
             used_transcripts("current"),
             used_transcripts("dump"),
-            spawned("judgment"),
-            foreign_seat(),
-            answer_matches(r"Accepted.*Rejected|Rejected.*Accepted", "presents the synthesizer lists"),
+            answer_matches(r"Accepted.*Rejected|Rejected.*Accepted", "presents the Accepted and Rejected lists"),
         ],
     ),
     "create-verification-skill": dict(

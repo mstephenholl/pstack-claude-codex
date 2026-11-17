@@ -36,31 +36,25 @@ MANAGED_HOME = os.path.join(HOME, ".local", "share", "pstack")
 HARNESSES = ("claude", "codex")
 UPSTREAM_PLUGIN = "in Claude Code, run `/plugin marketplace add cursor/plugins`, then `/plugin install pstack@cursor-plugins`"
 
-BUDGETS = {"unlimited": "max", "large": "xhigh", "medium": "high", "small": "medium"}
+# How many steps each budget lowers every role's default effort. No role runs above TOP_EFFORT.
+BUDGETS = {"large": 0, "medium": 1, "small": 2}
 EFFORTS = ["low", "medium", "high", "xhigh", "max"]
+TOP_EFFORT = "xhigh"
 DEFAULT_MODELS = {"claude": {"judgment": "opus", "code": "sonnet"}, "codex": {"judgment": "gpt-6-astra", "code": "gpt-6.1-sol"}}
 CLAUDE_ALIASES = ["opus", "sonnet", "haiku", "fable"]
-# Role, and the kind of model it defaults to. Panels seat one reviewer per entry.
+# Role, the kind of model it defaults to, and its effort under the large budget. Panels seat one reviewer per entry.
 ROLES = [
-    ("feature, refactoring", "code"),
-    ("bug-fix", "code"),
-    ("perf-issue", "code"),
-    ("hillclimb", "code"),
-    ("judgment and prose", "judgment"),
-    ("hardest tasks", "judgment"),
-    ("how explorer", "code"),
-    ("how explainer", "judgment"),
-    ("why investigators", "code"),
-    ("why synthesizer", "judgment"),
-    ("reflect tooling", "code"),
-    ("reflect judgment, divergent, synthesizer", "judgment"),
-    ("arena runners", "panel"),
-    ("arena cross-judge pool", "judgment"),
-    ("swarm workers", "code"),
-    ("architect runners", "panel"),
-    ("interrogate reviewers", "panel"),
+    ("feature, refactoring", "code", "xhigh"),
+    ("bug-fix", "code", "xhigh"),
+    ("perf-issue", "code", "xhigh"),
+    ("hillclimb", "code", "xhigh"),
+    ("judgment and prose", "judgment", "xhigh"),
+    ("arena runners", "panel", "high"),
+    ("arena cross-judge pool", "judgment", "high"),
+    ("swarm workers", "code", "high"),
+    ("interrogate reviewers", "panel", "high"),
 ]
-ROLE_NAMES = [r for r, _ in ROLES]
+ROLE_NAMES = [r for r, _, _ in ROLES]
 READ_RULES = ["Read(~/.agents/pstack/**)", "Read(~/.agents/pstack-models.md)", "Read(~/.claude/skills/**)"]
 
 
@@ -227,15 +221,20 @@ def clamp_effort(target, supported):
     return (below or ranked)[-1]
 
 
+def budget_effort(default, budget):
+    """A role's default effort lowered by the budget, never below the bottom of the ladder."""
+    return EFFORTS[max(0, EFFORTS.index(default) - BUDGETS[budget])]
+
+
 def plan(current, detected, harnesses, budget, foreign_seats, pull_requests, sets):
     """The roles to write, and what a person has to decide."""
     old_budget = (current or {}).get("budget")
     old_foreign = (current or {}).get("foreign_seats") or "on"
-    target = BUDGETS[budget]
     roles, kept, needs_choice, added = {}, [], [], set()
     seated, old_seated = seated_harnesses(harnesses, detected, foreign_seats), seated_harnesses(harnesses, detected, old_foreign)
     missing = harnesses_without_entries(current, harnesses, seated, foreign_seats)
-    for role, kind in ROLES:
+    for role, kind, default in ROLES:
+        target = budget_effort(default, budget)
         pairs = default_entries(kind, seated, foreign_seats)
         existing = (current or {}).get("roles", {}).get(role)
         if existing is not None:
@@ -263,7 +262,7 @@ def plan(current, detected, harnesses, budget, foreign_seats, pull_requests, set
     dropped = (current or {}).get("unknown", [])
     return {
         "budget": budget,
-        "effort": target,
+        "effort": budget_effort(TOP_EFFORT, budget),
         "foreign_seats": foreign_seats,
         "pull_requests": pull_requests,
         "harnesses": harnesses,
@@ -413,7 +412,11 @@ def cmd_configure(args):
             sets[role] = [parse_entry(v) for v in value.split(",") if v.strip()]
         except ValueError as e:
             fail(str(e))
-    budget = args.budget or (current or {}).get("budget")
+        for e in sets[role]:
+            if e["effort"] and e["effort"] not in EFFORTS[: EFFORTS.index(TOP_EFFORT) + 1]:
+                fail(f"{role}: {format_entry(e)} is above {TOP_EFFORT}, and no role runs above it")
+    recorded = (current or {}).get("budget")
+    budget = args.budget or (recorded if recorded in BUDGETS else None)
     foreign = args.foreign_seats or (current or {}).get("foreign_seats")
     pull_requests = args.pull_requests or (current or {}).get("pull_requests")
     interactive = sys.stdin.isatty() and not args.json and not args.yes

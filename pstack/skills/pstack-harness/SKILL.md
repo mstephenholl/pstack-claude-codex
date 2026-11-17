@@ -63,26 +63,26 @@ Named agents:
 
 ## Models
 
-Skill text names Cursor slugs (`grok-4.7-xhigh-fast`, `claude-opus-5-5-xhigh`) as defaults. Ignore them. Resolve every role from `~/.agents/pstack-models.md`, and use the table below when the file or the role's line is missing.
+Skill text names Cursor slugs (`claude-opus-5-5-xhigh-fast`, `claude-fable-5-2-high`, `gemini-4-carbon-high`) as defaults. Ignore them. Resolve every role from `~/.agents/pstack-models.md`, and use the table below when the file or the role's line is missing.
 
 An entry is `<harness>:<model>[@<effort>]`, where harness is `claude` or `codex`, or `inherit-parent` (also written `auto`), which means a native subagent on your own model. An entry is native when its harness is yours and foreign otherwise.
 
-- Panel roles (`arena runners`, `architect runners`, `interrogate reviewers`) get one seat per entry.
+- Panel roles (`arena runners`, `interrogate reviewers`) get one seat per entry.
 - `arena cross-judge pool` gets one seat, and only a foreign entry fills it, since a foreign entry is the only kind from a model family other than yours. Try the foreign entries in pool order, then the foreign entries of the role's default below. A native or `inherit-parent` entry never judges. When none of them runs, skip the judge as the arena skill says.
-- `reflect tooling` gets one seat. Prefer a foreign entry, since that is a different model family from yours. Stay native when the transcript's lookups need MCP servers only your harness has configured.
 - Every other role takes the first native entry. With no native entry, it takes the first entry and runs it foreign.
 
-If the file has the line `foreign seats: off`, never run a foreign entry, because a foreign seat sends code or transcripts to the other vendor. Drop every foreign entry before resolving. Panels then seat only their native entries, `reflect tooling` takes its first native entry, and arena skips the cross-judge. A role left with no native entry runs as `inherit-parent`. Without that line, foreign seats are on.
+If the file has the line `foreign seats: off`, never run a foreign entry, because a foreign seat sends code or transcripts to the other vendor. Drop every foreign entry before resolving. Panels then seat only their native entries, and arena skips the cross-judge. A role left with no native entry runs as `inherit-parent`. Without that line, foreign seats are on.
 
 Run a native entry as a subagent with its model and effort, as the Tools table says. Run a foreign entry through the other harness's CLI, below.
 
-Skills say to pick each subagent's reasoning level and fast or standard speed for the job. Here that moves only the effort. Start from the entry's effort, or `xhigh` when it has none, and move it as the skill says among `low`, `medium`, `high`, `xhigh`, and `max`. Keep the entry's harness and model. If the model does not support that effort, use the nearest one it does. A foreign seat passes the effort to its CLI. Neither harness has fast mode per subagent, so every subagent runs at standard speed. An `inherit-parent` entry stays on your own model and effort.
+Skills say to pick each subagent's reasoning level and fast or standard speed for the job. Here that moves only the effort. Start from the entry's effort, or the role's effort in the table below when it has none, and move it as the skill says among `low`, `medium`, `high`, and `xhigh`. No role runs above `xhigh`. Keep the entry's harness and model. If the model does not support that effort, use the nearest one it does. A foreign seat passes the effort to its CLI. Neither harness has fast mode per subagent, so every subagent runs at standard speed. An `inherit-parent` entry stays on your own model and effort.
 
-| Role | Default |
-|---|---|
-| `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `how explorer`, `why investigators`, `reflect tooling`, `swarm workers` | `claude:sonnet, codex:gpt-6.1-sol` |
-| `judgment and prose`, `hardest tasks`, `how explainer`, `why synthesizer`, `reflect judgment, divergent, synthesizer` | `claude:opus, codex:gpt-6-astra` |
-| `arena runners`, `architect runners`, `interrogate reviewers`, `arena cross-judge pool` | `claude:opus, codex:gpt-6-astra` |
+| Role | Default | Effort |
+|---|---|---|
+| `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb` | `claude:sonnet, codex:gpt-6.1-sol` | `xhigh` |
+| `swarm workers` | `claude:sonnet, codex:gpt-6.1-sol` | `high` |
+| `judgment and prose` | `claude:opus, codex:gpt-6-astra` | `xhigh` |
+| `arena runners`, `interrogate reviewers`, `arena cross-judge pool` | `claude:opus, codex:gpt-6-astra` | `high` |
 
 If a model is rejected, use that role's default for the same harness and say so.
 

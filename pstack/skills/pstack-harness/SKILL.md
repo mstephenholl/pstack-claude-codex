@@ -124,7 +124,7 @@ Raw logs live at `~/.claude/projects/<slug>/<session-id>.jsonl` (Claude Code) an
 
 ## Long runs
 
-For Orchestrate, Autopilot, Autonomous run, Multi-phase plan, Session pickup, and Pause safely:
+For Autopilot, Autonomous run, Multi-phase plan, Session pickup, and Pause safely:
 
 - **Scale.** Everything runs on this machine. Keep 3 to 5 writers and 1 to 3 live UI lanes in flight. Default to a flat tree where you drain every worker yourself. A Claude Code subagent ends with its turn, so a sub-coordinator is one blocking pass per wave, not a durable layer.
 - **Resume an agent.** Claude Code: `SendMessage` to its id or name, a deferred tool you load first. Codex: `send_message` to a running agent, `followup_task` for more work. Either one restarts an idle agent, so never resume one just to check on it.

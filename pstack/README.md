@@ -9,7 +9,7 @@ The skill text is upstream's. Each ported skill carries one extra line that poin
 - Codex.
 - `git`, `python3`, and `gh`.
 - Optional: Claude Code, logged in, if you want Codex panels to seat Claude models. See [Using Claude Code and Codex together](#using-claude-code-and-codex-together).
-- Optional: `bun` for the Babysit and Orchestrate helper scripts, and `tmux` for `control-cli`.
+- Optional: `bun` for the Babysit helper script, and `tmux` for `control-cli`.
 - Optional, for `statechart`: Bun 1.1.5 or later, Node 22.18 to 22.x, Node 23.6 or later, or Deno 2.0 or later to run it, and `mise` to install TLC and Java on its first run. With `TLA2TOOLS` set to a `tla2tools.jar`, it uses that jar and the `java` on your `PATH` (or `JAVA`) instead.
 
 ## Set up
@@ -131,7 +131,7 @@ Earlier releases of this fork also installed into Claude Code. To switch Claude 
 ## Differences from Cursor's pstack
 
 - `tdd` and `teach` are renamed `pstack-tdd` and `pstack-teach` to avoid clashing with other skills of the same name.
-- There are no cloud agents. Every worker runs locally, and a worker that writes gets its own git worktree. The Orchestrate and Autopilot playbooks run on one supervised machine.
+- There are no cloud agents. Every worker runs locally, and a worker that writes gets its own git worktree. The Autopilot playbooks run on one supervised machine.
 - Subagents run at standard speed. Codex has no fast mode per subagent, so skills that pick a subagent's reasoning level and speed change only its effort.
 - `recall`, `reflect`, `automate-me`, and `show-me-your-work` read Codex and Claude Code session logs through `port/transcripts.py`.
 - The `comment-sicko` and `poteto-agent` agents are Claude Code agents. Codex starts a default agent with their instructions.

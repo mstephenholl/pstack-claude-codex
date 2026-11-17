@@ -50,7 +50,7 @@ For anything that needs rigor, start with `poteto-mode`. It matches the task to 
 | Start here | `poteto-mode` | Rigorous work of any kind. It picks the playbook. |
 | | `figure-it-out` | Large or unusual work no playbook fits. It designs an auditable plan first. |
 | Understand | `how` | How code works, and where something should live. |
-| | `why` | Why code is the way it is, from git history and whatever MCP sources you have. |
+| | `why` | Why code is the way it is, from the commits and PR discussions that shaped it, and other sources when that trail is thin. |
 | | `pstack-teach` | A plain explanation built from `how` and `why`. |
 | | `recall` | Catching up on recent work from your Codex and Claude Code sessions. |
 | | `blast-radius` | What a change could break outside the diff. |
@@ -58,7 +58,7 @@ For anything that needs rigor, start with `poteto-mode`. It matches the task to 
 | | `ketchup` | What changed in the chat since your last message, briefly, with pictures where they help and each decision you need to make. |
 | | `ketchup-video` | The same catch-up as a short subtitled video of slides, with each decision you need to make as text under it. |
 | | `in-your-own-words` | Your goal and the problem played back before the agent starts. |
-| | `sharpen` | The task sharpened before the agent starts: how an expert would approach it, what you are really after, and how much to specify. |
+| | `sharpen` | Your prompt made deeper, not bigger, before you send it: what an expert would add, the raw material they'd start from, and how to check the result. Choices an experiment can settle go to a prototype. |
 | Design and review | `architect` | Types and module shape before code, from competing sketches. |
 | | `arena` | Several candidates for the same task, merged into the best one. |
 | | `interrogate` | Adversarial review of a diff by a panel of models, keeping only findings a run proves. |

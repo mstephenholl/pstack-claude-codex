@@ -23,7 +23,7 @@ Use your harness's question tool, and name the current value of each.
 
 ### 3. Preview and confirm
 
-Run `~/.agents/pstack/port/pstack configure --budget <budget> --foreign-seats <on|off> --pull-requests <ready|draft> --dry-run --json --yes`. Show every role with its entries, each `needs_choice` item, each kept override, and each dropped line. Ask whether to accept as-is or change specific roles, offering the `detected` models plus `inherit-parent`, at `xhigh` effort or below. Panel roles (`arena runners`, `interrogate reviewers`) run one seat per entry, so the list length sets the count.
+Run `~/.agents/pstack/port/pstack configure --budget <budget> --foreign-seats <on|off> --pull-requests <ready|draft> --dry-run --json --yes`. Show every role with its entries, each `needs_choice` item, each kept override, each dropped line, and each `upgraded` entry, which moved from an older default model to the newest one detected. Ask whether to accept as-is or change specific roles, offering the `detected` models plus `inherit-parent`, at `xhigh` effort or below. Panel roles (`arena runners`, `interrogate reviewers`) run one seat per entry, so the list length sets the count. When `detected` lists `gpt-6.2-astra`, offer it for the judgment roles and panels as a stronger choice than the default `gpt-6-astra`, and say it costs more.
 
 Add one `--set "<role>=<entry>, <entry>"` per change, for example `--set "swarm workers=claude:haiku, codex:gpt-6-luna"`. Rerun the preview until nothing needs a choice. Never pass `--force` unless the user asks for a model the detection missed.
 

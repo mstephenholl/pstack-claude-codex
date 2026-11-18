@@ -93,12 +93,22 @@ class CliTest(Env):
         self.assertEqual(self.links("claude"), [])
         self.assertIn("poteto-mode", self.links("codex"))
         self.pstack("configure", "--budget", "large", "--foreign-seats", "off", "--yes")
-        self.assertEqual(self.models_file()["interrogate reviewers"], "codex:gpt-6-astra@xhigh, codex:gpt-6.1-sol@medium")
+        self.assertEqual(self.models_file()["interrogate reviewers"], "codex:gpt-6-astra@high, codex:gpt-6.1-sol@medium")
 
-    def test_reflect_tooling_runs_on_the_code_model(self):
+    def test_configure_drops_upstreams_retired_roles_and_the_unlimited_budget(self):
         self.pstack("install", "--codex")
-        self.pstack("configure", "--budget", "large", "--foreign-seats", "off", "--yes")
-        self.assertEqual(self.models_file()["reflect tooling"], "codex:gpt-6.1-sol@medium")
+        with open(self.models, "w") as f:
+            f.write("# budget: unlimited (max)\nhardest tasks: codex:gpt-6-astra@max\nreflect tooling: codex:gpt-6.1-sol@medium\n")
+        out = json.loads(self.pstack("configure", "--foreign-seats", "off", "--json", "--yes").stdout)
+        self.assertEqual((out["budget"], out["previous"]["budget"]), ("large", "unlimited"))
+        self.assertEqual(out["dropped"], ["hardest tasks", "reflect tooling"])
+        roles = self.models_file()
+        self.assertEqual(roles["judgment and prose"], "codex:gpt-6-astra@xhigh")
+        self.assertNotIn("hardest tasks", roles)
+        self.assertIn("# budget: large (xhigh)", open(self.models).read())
+        self.pstack("configure", "--budget", "unlimited", "--yes", code=2)
+        refused = self.pstack("configure", "--set", "bug-fix=codex:gpt-6-astra@max", "--yes", code=1)
+        self.assertIn("no role runs above it", refused.stderr)
 
     def test_install_with_only_claude_installed_points_to_upstreams_plugin_and_links_nothing(self):
         self.fake_installed("claude")
@@ -185,8 +195,8 @@ class CliTest(Env):
         self.assertEqual([f["level"] for f in stranded], ["warn"])
         self.assertIn("added codex's defaults", self.pstack("configure", "--yes").stdout)
         roles = self.models_file()
-        self.assertEqual(roles["swarm workers"], "claude:sonnet@xhigh, codex:gpt-6.1-sol@medium")
-        self.assertEqual(roles["interrogate reviewers"], "claude:opus@xhigh, claude:sonnet@xhigh, codex:gpt-6-astra@xhigh, codex:gpt-6.1-sol@medium")
+        self.assertEqual(roles["swarm workers"], "claude:sonnet@high, codex:gpt-6.1-sol@medium")
+        self.assertEqual(roles["interrogate reviewers"], "claude:opus@high, claude:sonnet@high, codex:gpt-6-astra@high, codex:gpt-6.1-sol@medium")
         self.assertFalse([f for f in self.doctor() if f["message"].startswith("no entry in the models file")])
         written = open(self.models).read()
         self.assertNotIn("added codex's defaults", self.pstack("configure", "--yes").stdout)
@@ -202,15 +212,15 @@ class CliTest(Env):
     def test_a_codex_install_seats_claude_only_while_foreign_seats_are_on(self):
         self.pstack("install")
         self.pstack("configure", "--budget", "large", "--foreign-seats", "on", "--yes")
-        self.assertEqual(self.models_file()["interrogate reviewers"], "claude:opus@xhigh, codex:gpt-6-astra@xhigh")
-        self.assertEqual(self.models_file()["swarm workers"], "claude:sonnet@xhigh, codex:gpt-6.1-sol@medium")
+        self.assertEqual(self.models_file()["interrogate reviewers"], "claude:opus@high, codex:gpt-6-astra@high")
+        self.assertEqual(self.models_file()["swarm workers"], "claude:sonnet@high, codex:gpt-6.1-sol@medium")
         self.assertEqual(self.links("claude"), [])
         text = open(self.models).read().replace("bug-fix: claude:sonnet@xhigh", "bug-fix: claude:gpt-9@xhigh")
         with open(self.models, "w") as f:
             f.write(text)
         self.assertIn("bug-fix: claude:gpt-9@xhigh is not an available model", self.pstack("doctor", "--offline", code=1).stdout)
         self.pstack("configure", "--budget", "large", "--foreign-seats", "off", "--set", "bug-fix=codex:gpt-6.1-sol", "--yes")
-        self.assertEqual(self.models_file()["interrogate reviewers"], "codex:gpt-6-astra@xhigh, codex:gpt-6.1-sol@medium")
+        self.assertEqual(self.models_file()["interrogate reviewers"], "codex:gpt-6-astra@high, codex:gpt-6.1-sol@medium")
         self.assertEqual(self.models_file()["swarm workers"], "codex:gpt-6.1-sol@medium")
 
     def test_configure_applies_budget_foreign_seats_and_effort_limits(self):
@@ -218,11 +228,13 @@ class CliTest(Env):
         self.pstack("configure", "--budget", "medium", "--foreign-seats", "off", "--yes")
         roles = self.models_file()
         self.assertEqual(roles["foreign seats"], "off")
-        self.assertEqual(roles["interrogate reviewers"], "claude:opus@high, claude:sonnet@high, codex:gpt-6-astra@high, codex:gpt-6.1-sol@medium")
-        self.assertEqual(roles["swarm workers"], "claude:sonnet@high, codex:gpt-6.1-sol@medium")
+        self.assertEqual(roles["bug-fix"], "claude:sonnet@high, codex:gpt-6.1-sol@medium")
+        self.assertEqual(roles["interrogate reviewers"], "claude:opus@medium, claude:sonnet@medium, codex:gpt-6-astra@medium, codex:gpt-6.1-sol@medium")
+        self.assertEqual(roles["swarm workers"], "claude:sonnet@medium, codex:gpt-6.1-sol@medium")
         self.assertTrue(os.path.isfile(os.path.join(self.home, ".claude", "agents", "pstack-effort-high.md")))
         self.pstack("configure", "--budget", "large", "--foreign-seats", "on", "--yes")
-        self.assertEqual(self.models_file()["interrogate reviewers"], "claude:opus@xhigh, codex:gpt-6-astra@xhigh")
+        self.assertEqual(self.models_file()["bug-fix"], "claude:sonnet@xhigh, codex:gpt-6.1-sol@medium")
+        self.assertEqual(self.models_file()["interrogate reviewers"], "claude:opus@high, codex:gpt-6-astra@high")
         agents = os.path.join(self.home, ".claude", "agents")
         self.assertEqual({f for f in os.listdir(agents) if f.startswith("pstack-effort-")}, {f"pstack-effort-{e}.md" for e in ("low", "medium", "high", "xhigh", "max")})
 
@@ -231,14 +243,14 @@ class CliTest(Env):
         self.pstack("configure", "--budget", "large", "--foreign-seats", "off", "--yes")
         with open(self.models, "a") as f:
             f.write("how critics: claude:opus@xhigh\n")
-        text = open(self.models).read().replace("swarm workers: claude:sonnet@xhigh, codex:gpt-6.1-sol@medium", "swarm workers: claude:haiku@xhigh")
+        text = open(self.models).read().replace("swarm workers: claude:sonnet@high, codex:gpt-6.1-sol@medium", "swarm workers: claude:haiku@high")
         with open(self.models, "w") as f:
             f.write(text)
         out = json.loads(self.pstack("configure", "--budget", "small", "--json", "--yes").stdout)
         self.assertEqual(out["kept_overrides"], ["swarm workers"])
         self.assertEqual(out["dropped"], ["how critics"])
         roles = self.models_file()
-        self.assertEqual(roles["swarm workers"], "claude:haiku@medium")
+        self.assertEqual(roles["swarm workers"], "claude:haiku@low")
         self.assertNotIn("how critics", roles)
 
     def test_configure_writes_pull_requests_ready_by_default(self):

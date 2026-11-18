@@ -17,13 +17,13 @@ Run `~/.agents/pstack/port/pstack configure --dry-run --json --yes`. It reports 
 
 Use your harness's question tool, and name the current value of each.
 
-- Budget, with these labels: `unlimited — max reasoning`, `large — xhigh reasoning`, `medium — high reasoning`, `small — medium reasoning`. They map to `--budget unlimited|large|medium|small`.
-- Foreign seats. A foreign seat runs a role on the other harness through its CLI, which sends code or the session transcript to that vendor. Offer `on — panels and reflect's tooling lens mix Claude and OpenAI models` and `off — everything stays in the harness you run it in`. With `off`, each panel seats two native models so it still gets two reviewers.
+- Budget, with these labels: `large — xhigh reasoning`, `medium — high reasoning`, `small — medium reasoning`. They map to `--budget large|medium|small`, and lower each role's default effort by zero, one, or two steps. No role runs above `xhigh`, so a recorded `unlimited` budget becomes `large`. Say so when it does.
+- Foreign seats. A foreign seat runs a role on the other harness through its CLI, which sends code or the session transcript to that vendor. Offer `on — panels mix Claude and OpenAI models` and `off — everything stays in the harness you run it in`. With `off`, each panel seats two native models so it still gets two reviewers.
 - Pull requests. Offer `ready` and `draft`. poteto-mode opens every PR in the chosen state. A request in a task overrides it for that task.
 
 ### 3. Preview and confirm
 
-Run `~/.agents/pstack/port/pstack configure --budget <budget> --foreign-seats <on|off> --pull-requests <ready|draft> --dry-run --json --yes`. Show every role with its entries, each `needs_choice` item, each kept override, and each dropped line. Ask whether to accept as-is or change specific roles, offering the `detected` models plus `inherit-parent`. Panel roles (`arena runners`, `architect runners`, `interrogate reviewers`) run one seat per entry, so the list length sets the count.
+Run `~/.agents/pstack/port/pstack configure --budget <budget> --foreign-seats <on|off> --pull-requests <ready|draft> --dry-run --json --yes`. Show every role with its entries, each `needs_choice` item, each kept override, and each dropped line. Ask whether to accept as-is or change specific roles, offering the `detected` models plus `inherit-parent`, at `xhigh` effort or below. Panel roles (`arena runners`, `interrogate reviewers`) run one seat per entry, so the list length sets the count.
 
 Add one `--set "<role>=<entry>, <entry>"` per change, for example `--set "swarm workers=claude:haiku, codex:gpt-6-luna"`. Rerun the preview until nothing needs a choice. Never pass `--force` unless the user asks for a model the detection missed.
 

@@ -54,11 +54,45 @@ class AnswerCheckTest(unittest.TestCase):
             "`update_user` never clears the cache entry. Later reads through the cache still return the old record.",
             "Reads after a write return stale data.",
             "The cache is never invalidated on write.",
+            "A successful rename leaves cached reads returning the old name in the same process.",
         ):
             self.assertTrue(self.finds_stale_cache_bug(answer), answer)
 
     def test_interrogate_rejects_an_answer_that_misses_the_bug(self):
         self.assertFalse(self.finds_stale_cache_bug("A CLI typo exits 0, and a failed save empties users.json."))
+
+
+class BraceReadTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+
+    def evidence(self, command):
+        path = os.path.join(self.tmp, "rollout.jsonl")
+        call = {"type": "response_item", "payload": {"type": "function_call", "name": "exec_command", "arguments": json.dumps({"cmd": command})}}
+        with open(path, "w") as f:
+            f.write(json.dumps(call) + "\n")
+        session = {"modified": "", "harness": "codex", "id": "s1", "path": path, "title": ""}
+        with mock.patch.object(smoke, "sessions_under", return_value=[session]):
+            return smoke.Evidence("codex", self.tmp, "")
+
+    def test_read_harness_sees_a_brace_expanded_read(self):
+        ev = self.evidence("cat ~/.agents/pstack/skills/{pstack-harness,arena}/SKILL.md")
+        self.assertTrue(smoke.read_harness(ev)[0])
+
+    def test_read_harness_fails_when_no_brace_alternative_is_the_harness(self):
+        ev = self.evidence("cat ~/.agents/pstack/skills/{arena,interrogate}/SKILL.md")
+        self.assertFalse(smoke.read_harness(ev)[0])
+
+    def test_every_called_check_sees_a_brace_expanded_path(self):
+        ev = self.evidence("cat ~/.agents/pstack/skills/poteto-mode/playbooks/{feature,bug-fix}.md")
+        self.assertTrue(ev.called(r"playbooks/bug-fix\.md"))
+
+    def test_shell_variables_and_json_objects_are_left_alone(self):
+        ev = self.evidence("cat ${HOME}/x")
+        self.assertTrue(ev.called(r"\$\{HOME\}/x"))
+        ev = self.evidence('echo {"model":"gpt-6-astra","reasoning_effort":"high"}')
+        self.assertTrue(ev.called(r'\{\\"model\\":\\"gpt-6-astra\\",\\"reasoning_effort\\":\\"high\\"\}'))
 
 
 class RunCodexTest(unittest.TestCase):

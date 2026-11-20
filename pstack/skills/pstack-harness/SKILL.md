@@ -63,7 +63,7 @@ Named agents:
 
 ## Models
 
-Skill text names Cursor slugs (`claude-opus-5-5-xhigh-fast`, `claude-fable-5-2-high`, `gemini-4-carbon-high`) as defaults. Ignore them. Resolve every role from `~/.agents/pstack-models.md`, and use the table below when the file or the role's line is missing.
+Skill text names Cursor slugs (`claude-opus-5-5-xhigh-fast`, `claude-fable-5-2-high`, `gemini-4-neon-xhigh`) as defaults. Ignore them. Resolve every role from `~/.agents/pstack-models.md`, and use the table below when the file or the role's line is missing.
 
 An entry is `<harness>:<model>[@<effort>]`, where harness is `claude` or `codex`, or `inherit-parent` (also written `auto`), which means a native subagent on your own model. An entry is native when its harness is yours and foreign otherwise.
 

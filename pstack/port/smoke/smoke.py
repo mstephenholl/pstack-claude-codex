@@ -197,6 +197,22 @@ def claude_subagents(session_path):
     return glob.glob(os.path.join(session_path[:-6], "subagents", "*.jsonl"))
 
 
+BRACE_ITEM = r"""[^{}\s,$\\'"]*"""
+BRACE_GROUP = re.compile(rf"(?<!\$)\{{({BRACE_ITEM}(?:,{BRACE_ITEM})+)\}}")
+
+
+def expand_word(word):
+    group = BRACE_GROUP.search(word)
+    if not group:
+        return [word]
+    head, tail = word[:group.start()], word[group.end():]
+    return [w for item in group.group(1).split(",") for w in expand_word(head + item + tail)]
+
+
+def expand_braces(text):
+    return re.sub(r"\S+", lambda m: " ".join(expand_word(m.group())), text)
+
+
 class Evidence:
     def __init__(self, harness, run_dir, answer):
         self.harness, self.run_dir, self.answer = harness, run_dir, answer or ""
@@ -205,7 +221,7 @@ class Evidence:
         for s in list(self.sessions):
             if s["harness"] == "claude":
                 paths += claude_subagents(s["path"])
-        self.calls = [c for p in dict.fromkeys(paths) for c in tool_calls(p)]
+        self.calls = [(name, expand_braces(text)) for p in dict.fromkeys(paths) for name, text in tool_calls(p)]
         self.harnesses = {s["harness"] for s in self.sessions}
 
     def called(self, pattern, name=None):
@@ -377,7 +393,7 @@ SCENARIOS = {
     "interrogate": dict(
         skill="interrogate",
         task="Interrogate the feat branch diff against main. Intent: add update_user next to the cached get_user, and a CLI over it.",
-        checks=[read_harness, read_models, spawned("judgment"), foreign_seat(), panel_seats, answer_matches(r"stale|invalidat|old (?:record|value|data)|clear\w* (?:the |its )?cache", "finds the stale-cache bug")],
+        checks=[read_harness, read_models, spawned("judgment"), foreign_seat(), panel_seats, answer_matches(r"stale|invalidat|old (?:record|value|data|name)|clear\w* (?:the |its )?cache", "finds the stale-cache bug")],
     ),
     "arena": dict(
         skill="arena",

@@ -38,6 +38,7 @@ SKILLS=(
   pstack-teach
   recall
   reflect
+  reframe
   setup-pstack
   sharpen
   show-me-your-work

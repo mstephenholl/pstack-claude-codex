@@ -59,6 +59,7 @@ For anything that needs rigor, start with `poteto-mode`. It matches the task to 
 | | `ketchup-video` | The same catch-up as a short subtitled video of slides, with each decision you need to make as text under it. |
 | | `in-your-own-words` | Your goal and the problem played back before the agent starts. |
 | | `sharpen` | Your prompt made deeper, not bigger, before you send it: what an expert would add, the raw material they'd start from, and how to check the result. Choices an experiment can settle go to a prototype. |
+| | `reframe` | The expert terms for what you're building, each tied to a real project that uses it, and your description rewritten with them. When your words could name more than one problem, it lists each first. |
 | Design and review | `architect` | Types and module shape before code, from competing sketches. |
 | | `arena` | Several candidates for the same task, merged into the best one. |
 | | `interrogate` | Adversarial review of a diff by a panel of models, keeping only findings a run proves. |

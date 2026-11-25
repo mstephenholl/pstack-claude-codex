@@ -8,26 +8,46 @@ pstack-harness, resolving models from ~/.agents/pstack-models.md, spawning the
 right subagent type and model, and running the other harness's CLI for a
 foreign seat. Runs that pass are deleted, sessions included. Runs that fail
 are kept for inspection. The trust entries Codex adds to its config.toml for
-each run's repo are removed either way.
+each run's repo are removed either way. Each run is also appended to
+results.jsonl in --out, with its metrics: minutes, Codex output tokens, and
+the lines the run added and removed in the repo.
 
   smoke.py [--only how,interrogate] [--harness claude|codex] [--jobs 4] [--keep] [--out DIR]
+  smoke.py --variant DIR [--base DIR] [--runs 5] [--only how,interrogate] [--jobs 4] [--keep] [--out DIR]
+
+With --variant, it measures whether an edit to pstack's skill text changes what
+Codex does. It runs the scenarios against two pstack checkouts, the base
+(default: the installed release's) and the variant, --runs times each, with the
+arms interleaved and the first arm alternating by rep. Then it prints a
+per-scenario comparison of passed runs, passed checks, and each metric. Each
+arm runs codex under a scratch HOME whose ~/.agents/pstack is that arm's tree
+and whose CODEX_HOME is still the real one. Limits:
+  - Codex only. Claude Code loads pstack from upstream's plugin.
+  - An edit to a skill that Codex may start on its own (pstack-harness, for
+    one) is not isolated, because Codex lists those from the installed copy.
+    The run warns when the variant edits one.
+  - output_tokens sums every turn of the run, a warmup turn included.
 """
 
 import argparse
 import concurrent.futures
+import filecmp
 import glob
 import json
 import os
 import re
 import shutil
+import statistics
 import subprocess
 import sys
 import time
 
+REAL_HOME = os.path.expanduser("~")
 PSTACK = os.path.expanduser("~/.agents/pstack")
 TRANSCRIPTS = os.path.join(PSTACK, "port", "transcripts.py")
 CLAUDE_PROJECTS = os.path.expanduser("~/.claude/projects")
-CODEX_CONFIG = os.path.join(os.environ.get("CODEX_HOME") or os.path.expanduser("~/.codex"), "config.toml")
+CODEX_HOME = os.environ.get("CODEX_HOME") or os.path.expanduser("~/.codex")
+CODEX_CONFIG = os.path.join(CODEX_HOME, "config.toml")
 
 CACHE_MAIN = '''\
 # User cache module
@@ -458,12 +478,12 @@ def prompt_for(harness, skill, task, tmp):
     return f"Use the {skill} skill: read ~/.agents/pstack/skills/{skill}/SKILL.md and follow it.\n\nTask: {task}\n\n{note}"
 
 
-def run_claude(prompt, repo, log, resume=None, mode="acceptEdits"):
+def run_claude(prompt, repo, log, resume=None, mode="acceptEdits", env=None):
     cmd = ["claude", "-p", prompt, "--output-format", "json", "--permission-mode", mode,
            "--allowedTools", "Bash", "--add-dir", "/tmp", "--add-dir", os.path.dirname(repo)]
     if resume:
         cmd += ["--resume", resume]
-    proc = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=45 * 60)
+    proc = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=45 * 60, env=env)
     log.write(proc.stdout + proc.stderr)
     try:
         out = json.loads(proc.stdout)
@@ -475,12 +495,12 @@ def run_claude(prompt, repo, log, resume=None, mode="acceptEdits"):
     return out.get("session_id"), out.get("result", "")
 
 
-def run_codex(prompt, repo, log, resume=None, mode=None):
+def run_codex(prompt, repo, log, resume=None, mode=None, env=None):
     last = os.path.join(os.path.dirname(repo), "codex-last.md")
     # --approve-for-me runs in workspace-write and lets Codex's reviewer answer escalation requests, which a headless run cannot.
     cmd = ["codex", "exec", "--json", "--approve-for-me", "--skip-git-repo-check", "-C", repo, "-o", last]
     cmd += ["resume", resume, prompt] if resume else [prompt]
-    proc = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=45 * 60)
+    proc = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=45 * 60, env=env)
     log.write(proc.stdout + proc.stderr)
     thread = None
     for line in proc.stdout.splitlines():
@@ -491,21 +511,51 @@ def run_codex(prompt, repo, log, resume=None, mode=None):
     return thread or resume, answer
 
 
-def run_one(name, harness, out_dir):
+def line_metrics(repo, start):
+    none = {"lines_added": None, "lines_removed": None}
+    if not os.path.isdir(repo):
+        return none
+    sh("git add -A -N", repo)
+    proc = sh(["git", "diff", "--numstat", start], repo)
+    if proc.returncode:
+        return none
+    added = removed = 0
+    for row in proc.stdout.splitlines():
+        plus, minus, _ = row.split("\t", 2)
+        if plus != "-":  # a binary file has no line counts
+            added, removed = added + int(plus), removed + int(minus)
+    return {"lines_added": added, "lines_removed": removed}
+
+
+def output_tokens(log_path):
+    total, seen = 0, False
+    with open(log_path, errors="replace") as f:
+        for line in f:
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(event, dict) and event.get("type") == "turn.completed":
+                total, seen = total + ((event.get("usage") or {}).get("output_tokens") or 0), True
+    return total if seen else None
+
+
+def run_one(name, harness, run_dir, env=None):
     spec = SCENARIOS[name]
-    run_dir = os.path.join(out_dir, f"{name}-{harness}")
     repo, tmp = os.path.join(run_dir, "repo"), os.path.join(run_dir, "tmp")
     make_fixture(repo)
+    start = sh("git rev-parse HEAD", repo).stdout.strip()
     os.makedirs(tmp)
     run = run_claude if harness == "claude" else run_codex
     started = time.time()
-    with open(os.path.join(run_dir, "run.log"), "w") as log:
+    log_path = os.path.join(run_dir, "run.log")
+    with open(log_path, "w") as log:
         session = None
         if spec.get("warmup"):
-            session, _ = run(spec["warmup"] + "\n\n" + SMOKE_NOTE.format(tmp=tmp), repo, log)
+            session, _ = run(spec["warmup"] + "\n\n" + SMOKE_NOTE.format(tmp=tmp), repo, log, env=env)
         try:
             extra = {"mode": spec["claude_mode"]} if harness == "claude" and spec.get("claude_mode") else {}
-            session, answer = run(prompt_for(harness, spec["skill"], spec["task"], tmp), repo, log, resume=session, **extra)
+            session, answer = run(prompt_for(harness, spec["skill"], spec["task"], tmp), repo, log, resume=session, env=env, **extra)
         except subprocess.TimeoutExpired:
             answer = ""
     with open(os.path.join(run_dir, "answer.md"), "w") as f:
@@ -517,7 +567,9 @@ def run_one(name, harness, out_dir):
             results.append(check(ev))
         except Exception as e:  # a crashing check is a failed check, not a crashed suite
             results.append((False, f"check crashed: {e}"))
-    return dict(name=name, harness=harness, run_dir=run_dir, minutes=(time.time() - started) / 60, results=results, sessions=ev.sessions)
+    minutes = (time.time() - started) / 60
+    metrics = dict(minutes=minutes, output_tokens=output_tokens(log_path) if harness == "codex" else None, **line_metrics(repo, start))
+    return dict(name=name, harness=harness, run_dir=run_dir, minutes=minutes, results=results, sessions=ev.sessions, metrics=metrics)
 
 
 def delete_sessions(run_dir):
@@ -556,8 +608,20 @@ def forget_trust(out_dir, config=CODEX_CONFIG):
         os.replace(tmp, config)
 
 
-def recheck(out_dir):
+def run_tag(arm, rep):
+    return f"{arm:<7} r{rep:<3} " if arm else ""
+
+
+def kept_runs(out_dir):
     for run_dir in sorted(glob.glob(os.path.join(out_dir, "*-*"))):
+        yield run_dir, ""
+    for run_dir in sorted(glob.glob(os.path.join(out_dir, "*", "r[0-9]*", "*-*"))):
+        rep_dir = os.path.dirname(run_dir)
+        yield run_dir, run_tag(os.path.basename(os.path.dirname(rep_dir)), os.path.basename(rep_dir)[1:])
+
+
+def recheck(out_dir):
+    for run_dir, tag in kept_runs(out_dir):
         name, harness = os.path.basename(run_dir).rsplit("-", 1)
         answer_path = os.path.join(run_dir, "answer.md")
         answer = open(answer_path).read() if os.path.exists(answer_path) else ""
@@ -565,11 +629,178 @@ def recheck(out_dir):
         results = [check(ev) for check in SCENARIOS[name]["checks"]]
         failed = [detail for ok, detail in results if not ok]
         notes = [d for ok, d in results if ok and "denied by the approval policy" in d]
-        print(f"{'FAIL' if failed else 'PASS'}  {name:<26} {harness:<6} " + ("; ".join(f"missing: {d}" for d in failed) if failed else "ok") + "".join(f"; note: {n}" for n in notes))
+        print(f"{'FAIL' if failed else 'PASS'}  {name:<26} {harness:<6} {tag}" + ("; ".join(f"missing: {d}" for d in failed) if failed else "ok") + "".join(f"; note: {n}" for n in notes))
 
 
-def pstack_state():
-    return sh("git status --porcelain && git rev-parse HEAD", PSTACK).stdout
+ARMS = ("base", "variant")
+DEFAULT_RUNS = 5
+METRICS = ("minutes", "output_tokens", "lines_added", "lines_removed")
+
+
+def link_entries(src, dst, skip):
+    os.makedirs(dst)
+    for name in os.listdir(src) if os.path.isdir(src) else []:
+        if name != skip:
+            os.symlink(os.path.join(src, name), os.path.join(dst, name))
+
+
+def make_arm_home(home, tree_root, real_home=None):
+    real_home = real_home or REAL_HOME
+    link_entries(real_home, home, skip=".agents")
+    link_entries(os.path.join(real_home, ".agents"), os.path.join(home, ".agents"), skip="pstack")
+    os.symlink(os.path.realpath(os.path.join(tree_root, "pstack")), os.path.join(home, ".agents", "pstack"))
+
+
+def remove_arm_home(home):
+    shutil.rmtree(home, ignore_errors=True)  # unlinks the symlinks, never follows them into the real HOME
+
+
+def arm_env(home, codex_home=None):
+    return dict(os.environ, HOME=home, CODEX_HOME=codex_home or CODEX_HOME)
+
+
+def schedule(names, runs):
+    plan = []
+    for rep in range(1, runs + 1):
+        arms = ARMS if rep % 2 else ARMS[::-1]
+        plan += [(rep, name, arm) for name in names for arm in arms]
+    return plan
+
+
+def result_record(row, arm, rep):
+    error = row.get("error")
+    record = dict(arm=arm, rep=rep, scenario=row["name"], harness=row["harness"], passed=not error and all(ok for ok, _ in row["results"]),
+                  checks=[] if error else [{"ok": ok, "detail": detail} for ok, detail in row["results"]], metrics=row.get("metrics") or {})
+    return dict(record, error=error) if error else record
+
+
+def describe_root(root):
+    rev = sh("git rev-parse --short HEAD", root)
+    if rev.returncode:
+        return f"{root} (not a git checkout)"
+    dirty = sh("git status --porcelain", root).stdout.strip()
+    return f"{root} ({rev.stdout.strip()}{'+dirty' if dirty else ''})"
+
+
+def user_only(skill_dir):
+    try:
+        with open(os.path.join(skill_dir, "agents", "openai.yaml")) as f:
+            return bool(re.search(r"^\s*allow_implicit_invocation:\s*false\s*$", f.read(), re.M))
+    except OSError:
+        return False
+
+
+def files_under(root):
+    return {os.path.relpath(os.path.join(d, f), root) for d, _, fs in os.walk(root) for f in fs}
+
+
+def differs(a, b):
+    left, right = files_under(a), files_under(b)
+    return left != right or any(not filecmp.cmp(os.path.join(a, f), os.path.join(b, f), shallow=False) for f in left)
+
+
+def skill_names(root):
+    skills = os.path.join(root, "pstack", "skills")
+    return set(os.listdir(skills)) if os.path.isdir(skills) else set()
+
+
+def confound_warnings(base_root, variant_root):
+    warnings = []
+    for skill in sorted(skill_names(base_root) | skill_names(variant_root)):
+        base_dir, variant_dir = (os.path.join(root, "pstack", "skills", skill) for root in (base_root, variant_root))
+        if not (user_only(base_dir) and user_only(variant_dir)) and differs(base_dir, variant_dir):
+            warnings.append(f"WARNING: the variant edits {skill}, a skill Codex may start on its own. Codex's skill list still points at the installed copy, so that edit is not isolated.")
+    return warnings
+
+
+def fmt(value):
+    return f"{value:.1f}".rstrip("0").rstrip(".")
+
+
+def spread(values):
+    return (statistics.median(values), min(values), max(values)) if values else None
+
+
+def spread_text(s):
+    return "n/a" if s is None else f"{fmt(s[0])} [{fmt(s[1])}, {fmt(s[2])}]"
+
+
+def metric_line(metric, by_arm):
+    base, variant = (spread([r["metrics"][metric] for r in by_arm[arm] if r["metrics"].get(metric) is not None]) for arm in ARMS)
+    ratio = f"{variant[0] / base[0]:.2f}x" if base and variant and base[0] else "n/a"
+    overlap = base and variant and max(base[1], variant[1]) <= min(base[2], variant[2])
+    return f"    {metric:<15}base {spread_text(base)}   variant {spread_text(variant)}   variant/base {ratio}" + ("   difference is within run-to-run spread" if overlap else "")
+
+
+def check_counts(rows, pos):
+    ran = [r for r in rows if len(r["checks"]) > pos]
+    return f"{sum(r['checks'][pos]['ok'] for r in ran)}/{len(ran)}"
+
+
+def scenario_report(scenario, rows):
+    by_arm = {arm: [r for r in rows if r["arm"] == arm] for arm in ARMS}
+    both = lambda text_for: "   ".join(f"{arm} {text_for(by_arm[arm])}" for arm in ARMS)
+    lines = ["", scenario, "  runs passed   " + both(lambda rs: f"{sum(r['passed'] for r in rs)}/{len(rs)}"), "  checks passed"]
+    for pos in range(max(len(r["checks"]) for r in rows)):
+        label = next(r["checks"][pos]["detail"] for r in rows if len(r["checks"]) > pos)
+        lines.append("    " + both(lambda rs: check_counts(rs, pos)) + "   " + label)
+    return lines + ["  metrics, median [min, max]"] + [metric_line(metric, by_arm) for metric in METRICS]
+
+
+def ab_report(records, roots, runs):
+    lines = [f"A/B comparison: {runs} runs per arm"] + [f"{arm + ':':<9}{roots[arm]}" for arm in ARMS]
+    for scenario in sorted({r["scenario"] for r in records}):
+        rows = sorted((r for r in records if r["scenario"] == scenario), key=lambda r: (r["rep"], ARMS.index(r["arm"])))
+        lines += scenario_report(scenario, rows)
+    return lines
+
+
+def pstack_state(tree):
+    return sh("git status --porcelain && git rev-parse HEAD", tree).stdout
+
+
+def ab_roots(parser, args):
+    if not args.variant:
+        if args.base or args.runs is not None:
+            parser.error("--base and --runs go with --variant")
+        return None
+    if args.harness == "claude":
+        parser.error("--variant runs Codex only. Claude Code loads pstack from upstream's plugin, not from ~/.agents/pstack, so it cannot run a variant tree.")
+    if args.runs is not None and args.runs < 1:
+        parser.error("--runs must be at least 1")
+    installed_checkout = os.path.dirname(os.path.realpath(PSTACK))
+    roots = {"base": os.path.realpath(args.base or installed_checkout), "variant": os.path.realpath(args.variant)}
+    for arm, root in roots.items():
+        if not os.path.isdir(os.path.join(root, "pstack", "skills")):
+            parser.error(f"the {arm} tree has no {os.path.join(root, 'pstack', 'skills')}. --base and --variant each name a pstack checkout, the folder that holds pstack/skills/.")
+    return roots
+
+
+def run_all(plan, out_dir, jobs, keep, homes):
+    rows, records = [], []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool, open(os.path.join(out_dir, "results.jsonl"), "a") as results_file:
+        futures = {}
+        for rep, n, h, arm in plan:
+            run_dir = os.path.join(out_dir, arm, f"r{rep}", f"{n}-{h}") if arm else os.path.join(out_dir, f"{n}-{h}")
+            futures[pool.submit(run_one, n, h, run_dir, arm_env(homes[arm]) if arm else None)] = (rep, n, h, arm, run_dir)
+        for future in concurrent.futures.as_completed(futures):
+            rep, n, h, arm, run_dir = futures[future]
+            try:
+                row = future.result()
+            except Exception as e:
+                error = f"run crashed: {e}"
+                row = dict(name=n, harness=h, run_dir=run_dir, minutes=0, results=[(False, error)], sessions=[], metrics={}, error=error)
+            passed = all(ok for ok, _ in row["results"])
+            print(f"{'PASS' if passed else 'FAIL'}  {n:<26} {h:<6} {run_tag(arm, rep)}{row['minutes']:5.1f} min", flush=True)
+            record = result_record(row, arm, rep)
+            records.append(record)
+            results_file.write(json.dumps(record) + "\n")
+            results_file.flush()
+            if passed and not keep:
+                delete_sessions(row["run_dir"])
+                shutil.rmtree(row["run_dir"], ignore_errors=True)
+            rows.append(row)
+    return rows, records
 
 
 def main():
@@ -580,47 +811,60 @@ def main():
     parser.add_argument("--keep", action="store_true", help="keep passing runs and their sessions too")
     parser.add_argument("--out", default=os.path.join("/tmp", f"pstack-smoke-{time.strftime('%Y%m%d-%H%M%S')}"))
     parser.add_argument("--recheck", action="store_true", help="re-run the checks on the kept runs in --out without running anything")
+    parser.add_argument("--variant", metavar="DIR", help="A/B mode (Codex only): run against this pstack checkout and compare with --base")
+    parser.add_argument("--base", metavar="DIR", help="the base pstack checkout for --variant (default: the installed release's)")
+    parser.add_argument("--runs", type=int, help=f"runs per arm with --variant (default {DEFAULT_RUNS})")
     args = parser.parse_args()
     if args.recheck:
         return recheck(os.path.realpath(args.out))
+    roots = ab_roots(parser, args)
 
     names = args.only.split(",") if args.only else list(SCENARIOS)
     unknown = set(names) - set(SCENARIOS)
     if unknown:
         sys.exit(f"unknown scenarios: {', '.join(sorted(unknown))}")
-    harnesses = [args.harness] if args.harness else ["claude", "codex"]
+    runs = args.runs or DEFAULT_RUNS
+    harnesses = ["codex"] if roots else [args.harness] if args.harness else ["claude", "codex"]
+    plan = [(rep, n, "codex", arm) for rep, n, arm in schedule(names, runs)] if roots else [(None, n, h, None) for n in names for h in harnesses]
     out_dir = os.path.realpath(args.out)
     os.makedirs(out_dir, exist_ok=True)
-    before = pstack_state()
+    trees = roots or {None: PSTACK}
+    before = {arm: pstack_state(tree) for arm, tree in trees.items()}
+    descriptions = {arm: describe_root(root) for arm, root in (roots or {}).items()}
     print(f"runs in {out_dir}", flush=True)
+    if roots:
+        for warning in confound_warnings(roots["base"], roots["variant"]):
+            print(warning, flush=True)
 
-    rows = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        futures = {pool.submit(run_one, n, h, out_dir): (n, h) for n in names for h in harnesses}
-        for future in concurrent.futures.as_completed(futures):
-            n, h = futures[future]
-            try:
-                row = future.result()
-            except Exception as e:
-                row = dict(name=n, harness=h, run_dir=os.path.join(out_dir, f"{n}-{h}"), minutes=0, results=[(False, f"run crashed: {e}")], sessions=[])
-            passed = all(ok for ok, _ in row["results"])
-            print(f"{'PASS' if passed else 'FAIL'}  {n:<26} {h:<6} {row['minutes']:5.1f} min", flush=True)
-            if passed and not args.keep:
-                delete_sessions(row["run_dir"])
-                shutil.rmtree(row["run_dir"], ignore_errors=True)
-            rows.append(row)
+    homes = {}
+    try:
+        for arm in roots or {}:
+            homes[arm] = os.path.join(out_dir, arm, "home")
+            make_arm_home(homes[arm], roots[arm])
+        rows, records = run_all(plan, out_dir, args.jobs, args.keep, homes)
+    finally:
+        for home in homes.values():
+            remove_arm_home(home)
     if "codex" in harnesses:
         forget_trust(out_dir)
 
     print()
-    for row in sorted(rows, key=lambda r: (r["name"], r["harness"])):
-        failed = [detail for ok, detail in row["results"] if not ok]
-        status = "PASS" if not failed else "FAIL"
-        notes = [d for ok, d in row["results"] if ok and "denied by the approval policy" in d]
-        detail = "; ".join(f"missing: {d}" for d in failed) if failed else f"{len(row['results'])} checks"
-        print(f"{status}  {row['name']:<26} {row['harness']:<6} " + detail + "".join(f"; note: {n}" for n in notes))
-    if pstack_state() != before:
-        print("\nWARNING: the pstack clone changed during the run. A skill edited pstack itself.")
+    if roots:
+        print("\n".join(ab_report(records, descriptions, runs)))
+    else:
+        for row in sorted(rows, key=lambda r: (r["name"], r["harness"])):
+            failed = [detail for ok, detail in row["results"] if not ok]
+            status = "PASS" if not failed else "FAIL"
+            notes = [d for ok, d in row["results"] if ok and "denied by the approval policy" in d]
+            detail = "; ".join(f"missing: {d}" for d in failed) if failed else f"{len(row['results'])} checks"
+            print(f"{status}  {row['name']:<26} {row['harness']:<6} " + detail + "".join(f"; note: {n}" for n in notes))
+    for arm, tree in trees.items():
+        if pstack_state(tree) != before[arm]:
+            print("\nWARNING: " + ("the pstack clone" if arm is None else f"the {arm} tree ({tree})") + " changed during the run. A skill edited pstack itself.")
+    if roots:
+        crashed = sum(1 for r in rows if r.get("error"))
+        print(f"\n{len(rows) - crashed}/{len(rows)} runs finished, {sum(r['passed'] for r in records)} passed every check. Failed runs and their sessions are kept in {out_dir}. Per-run results are in {os.path.join(out_dir, 'results.jsonl')}.")
+        sys.exit(1 if crashed else 0)
     failures = sum(1 for r in rows if not all(ok for ok, _ in r["results"]))
     print(f"\n{len(rows) - failures}/{len(rows)} passed. Failed runs and their sessions are kept in {out_dir}.")
     sys.exit(1 if failures else 0)

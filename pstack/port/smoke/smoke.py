@@ -8,9 +8,25 @@ pstack-harness, resolving models from ~/.agents/pstack-models.md, spawning the
 right subagent type and model, and running the other harness's CLI for a
 foreign seat. Runs that pass are deleted, sessions included. Runs that fail
 are kept for inspection. The trust entries Codex adds to its config.toml for
-each run's repo are removed either way.
+each run's repo are removed either way. Each run is also appended to
+results.jsonl in --out, with its metrics: minutes, Codex output tokens, and
+the lines the run added and removed in the repo.
 
   smoke.py [--only how,interrogate] [--harness claude|codex] [--jobs 4] [--keep] [--out DIR]
+  smoke.py --variant DIR [--base DIR] [--runs 5] [--only how,interrogate] [--jobs 4] [--keep] [--out DIR]
+
+With --variant, it measures whether an edit to pstack's skill text changes what
+Codex does. It runs the scenarios against two pstack checkouts, the base
+(default: the installed release's) and the variant, --runs times each, with the
+arms interleaved and the first arm alternating by rep. Then it prints a
+per-scenario comparison of passed runs, passed checks, and each metric. Each
+arm runs codex under a scratch HOME whose ~/.agents/pstack is that arm's tree
+and whose CODEX_HOME is still the real one. Limits:
+  - Codex only. Claude Code loads pstack from upstream's plugin.
+  - An edit to a skill that Codex may start on its own (pstack-harness, for
+    one) is not isolated, because Codex lists those from the installed copy.
+    The run warns when the variant edits one.
+  - output_tokens sums every turn of the run, a warmup turn included.
 """
 
 import argparse

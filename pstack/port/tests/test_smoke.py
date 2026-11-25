@@ -158,9 +158,6 @@ class ForgetTrustTest(unittest.TestCase):
         self.assertFalse(os.path.exists(self.config))
 
 
-# --- A/B mode ---------------------------------------------------------------
-
-
 def write(path, text="", mode=None):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
@@ -171,7 +168,6 @@ def write(path, text="", mode=None):
 
 
 def make_tree(root, skills):
-    """A pstack checkout under root, from {skill: {relative file: text}} placed in pstack/skills/."""
     for skill, files in skills.items():
         for rel, text in files.items():
             write(os.path.join(root, "pstack", "skills", skill, rel), text)
@@ -194,8 +190,6 @@ def git(cwd, args):
 
 
 class TmpCase(unittest.TestCase):
-    """A scratch directory, and git that ignores the real user's config."""
-
     def setUp(self):
         self.tmp = os.path.realpath(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp)
@@ -439,7 +433,6 @@ class DescribeRootTest(TmpCase):
         self.assertIn("not a git checkout", smoke.describe_root(root))
 
 
-# Stands in for `codex exec`: answers with the demo skill it reads through ~, adds a line to the repo, and prints Codex's --json events.
 FAKE_CODEX = """#!/bin/sh
 while [ $# -gt 0 ]; do
   if [ "$1" = "-o" ]; then last="$2"; fi
@@ -454,8 +447,7 @@ echo '{"type":"turn.completed","usage":{"input_tokens":5,"output_tokens":7}}'
 exit 0
 """
 
-# A harness that must never start. It leaves a marker next to itself.
-FAKE_HARNESS = '#!/bin/sh\ntouch "$(dirname "$0")/started-$(basename "$0")"\n'
+TRIPWIRE_HARNESS = '#!/bin/sh\ntouch "$(dirname "$0")/started-$(basename "$0")"\n'
 
 
 class RunCodexEnvTest(TmpCase):
@@ -482,8 +474,6 @@ class RunCodexEnvTest(TmpCase):
 
 
 class MainTest(TmpCase):
-    """main() against a fake codex, a fake real HOME, and one fake scenario. No session, trust file, or Codex home is touched."""
-
     def setUp(self):
         super().setUp()
         self.home = os.path.join(self.tmp, "home")
@@ -505,7 +495,7 @@ class MainTest(TmpCase):
         os.makedirs(self.codex_home)
         bin_dir = os.path.join(self.tmp, "bin")
         write(os.path.join(bin_dir, "codex"), FAKE_CODEX, 0o755)
-        write(os.path.join(bin_dir, "claude"), FAKE_HARNESS, 0o755)
+        write(os.path.join(bin_dir, "claude"), TRIPWIRE_HARNESS, 0o755)
         self.patch_env({"PATH": bin_dir + os.pathsep + os.environ["PATH"], "HOME": self.home, "CODEX_HOME": self.codex_home})
         self.patch(smoke, "REAL_HOME", self.home)
         self.patch(smoke, "CODEX_HOME", self.codex_home)
@@ -633,7 +623,7 @@ class CliTest(TmpCase):
         super().setUp()
         self.bin = os.path.join(self.tmp, "bin")
         for harness in ("claude", "codex"):
-            write(os.path.join(self.bin, harness), FAKE_HARNESS, 0o755)
+            write(os.path.join(self.bin, harness), TRIPWIRE_HARNESS, 0o755)
         self.home = os.path.join(self.tmp, "home")
         os.makedirs(os.path.join(self.home, ".codex"))
         self.tree = make_tree(os.path.join(self.tmp, "tree"), {"demo": {"SKILL.md": "x\n"}})

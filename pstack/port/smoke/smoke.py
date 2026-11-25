@@ -478,12 +478,12 @@ def prompt_for(harness, skill, task, tmp):
     return f"Use the {skill} skill: read ~/.agents/pstack/skills/{skill}/SKILL.md and follow it.\n\nTask: {task}\n\n{note}"
 
 
-def run_claude(prompt, repo, log, resume=None, mode="acceptEdits"):
+def run_claude(prompt, repo, log, resume=None, mode="acceptEdits", env=None):
     cmd = ["claude", "-p", prompt, "--output-format", "json", "--permission-mode", mode,
            "--allowedTools", "Bash", "--add-dir", "/tmp", "--add-dir", os.path.dirname(repo)]
     if resume:
         cmd += ["--resume", resume]
-    proc = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=45 * 60)
+    proc = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=45 * 60, env=env)
     log.write(proc.stdout + proc.stderr)
     try:
         out = json.loads(proc.stdout)
@@ -512,7 +512,6 @@ def run_codex(prompt, repo, log, resume=None, mode=None, env=None):
 
 
 def line_metrics(repo, start):
-    """Lines added and removed in repo since commit start. Untracked files count."""
     none = {"lines_added": None, "lines_removed": None}
     if not os.path.isdir(repo):
         return none
@@ -529,7 +528,6 @@ def line_metrics(repo, start):
 
 
 def output_tokens(log_path):
-    """Sum of usage.output_tokens over the turn.completed events in a Codex --json log. None when it has none."""
     total, seen = 0, False
     with open(log_path, errors="replace") as f:
         for line in f:
@@ -551,14 +549,13 @@ def run_one(name, harness, run_dir, env=None):
     run = run_claude if harness == "claude" else run_codex
     started = time.time()
     log_path = os.path.join(run_dir, "run.log")
-    env_arg = {"env": env} if env else {}  # only A/B mode passes one, and only run_codex takes it
     with open(log_path, "w") as log:
         session = None
         if spec.get("warmup"):
-            session, _ = run(spec["warmup"] + "\n\n" + SMOKE_NOTE.format(tmp=tmp), repo, log, **env_arg)
+            session, _ = run(spec["warmup"] + "\n\n" + SMOKE_NOTE.format(tmp=tmp), repo, log, env=env)
         try:
             extra = {"mode": spec["claude_mode"]} if harness == "claude" and spec.get("claude_mode") else {}
-            session, answer = run(prompt_for(harness, spec["skill"], spec["task"], tmp), repo, log, resume=session, **extra, **env_arg)
+            session, answer = run(prompt_for(harness, spec["skill"], spec["task"], tmp), repo, log, resume=session, env=env, **extra)
         except subprocess.TimeoutExpired:
             answer = ""
     with open(os.path.join(run_dir, "answer.md"), "w") as f:
@@ -612,12 +609,10 @@ def forget_trust(out_dir, config=CODEX_CONFIG):
 
 
 def run_tag(arm, rep):
-    """The arm and rep column of a run's output line. Plain mode has none."""
     return f"{arm:<7} r{rep:<3} " if arm else ""
 
 
 def kept_runs(out_dir):
-    """(run dir, output tag) for each run kept in out_dir, in the plain layout and the A/B layout."""
     for run_dir in sorted(glob.glob(os.path.join(out_dir, "*-*"))):
         yield run_dir, ""
     for run_dir in sorted(glob.glob(os.path.join(out_dir, "*", "r[0-9]*", "*-*"))):
@@ -637,18 +632,12 @@ def recheck(out_dir):
         print(f"{'FAIL' if failed else 'PASS'}  {name:<26} {harness:<6} {tag}" + ("; ".join(f"missing: {d}" for d in failed) if failed else "ok") + "".join(f"; note: {n}" for n in notes))
 
 
-# --- A/B mode ---------------------------------------------------------------
-# The same scenarios against two pstack trees, a base and a variant, interleaved over several reps. Codex loads pstack only
-# through ~ paths, so each arm runs under a scratch HOME whose ~/.agents/pstack is that arm's tree. CODEX_HOME stays the real
-# one, so sessions, trust entries, and login are where Evidence, delete_sessions, and forget_trust already look.
-
 ARMS = ("base", "variant")
 DEFAULT_RUNS = 5
 METRICS = ("minutes", "output_tokens", "lines_added", "lines_removed")
 
 
 def link_entries(src, dst, skip):
-    """Make dst a real directory that holds a symlink to each entry of src, except the one named skip."""
     os.makedirs(dst)
     for name in os.listdir(src) if os.path.isdir(src) else []:
         if name != skip:
@@ -656,9 +645,6 @@ def link_entries(src, dst, skip):
 
 
 def make_arm_home(home, tree_root, real_home=None):
-    """A HOME that mirrors the real one, except that ~/.agents/pstack is tree_root's pstack folder.
-
-    Both levels are real directories of symlinks, so a write under ~/.agents lands in the arm and is dropped with it."""
     real_home = real_home or REAL_HOME
     link_entries(real_home, home, skip=".agents")
     link_entries(os.path.join(real_home, ".agents"), os.path.join(home, ".agents"), skip="pstack")
@@ -674,7 +660,6 @@ def arm_env(home, codex_home=None):
 
 
 def schedule(names, runs):
-    """(rep, name, arm) in submission order. Each rep runs every scenario in both arms, and the arm that goes first alternates by rep."""
     plan = []
     for rep in range(1, runs + 1):
         arms = ARMS if rep % 2 else ARMS[::-1]
@@ -683,7 +668,6 @@ def schedule(names, runs):
 
 
 def result_record(row, arm, rep):
-    """The results.jsonl object for one finished run. A run that crashed carries its error and no checks."""
     error = row.get("error")
     record = dict(arm=arm, rep=rep, scenario=row["name"], harness=row["harness"], passed=not error and all(ok for ok, _ in row["results"]),
                   checks=[] if error else [{"ok": ok, "detail": detail} for ok, detail in row["results"]], metrics=row.get("metrics") or {})
@@ -721,9 +705,6 @@ def skill_names(root):
 
 
 def confound_warnings(base_root, variant_root):
-    """One warning per skill that Codex may start on its own and that the variant edits.
-
-    Codex lists those skills from the installed copy, so an edit to one is not isolated by the arm HOME."""
     warnings = []
     for skill in sorted(skill_names(base_root) | skill_names(variant_root)):
         base_dir, variant_dir = (os.path.join(root, "pstack", "skills", skill) for root in (base_root, variant_root))
@@ -737,7 +718,6 @@ def fmt(value):
 
 
 def spread(values):
-    """(median, min, max) of values, or None when there are none."""
     return (statistics.median(values), min(values), max(values)) if values else None
 
 
@@ -753,7 +733,7 @@ def metric_line(metric, by_arm):
 
 
 def check_counts(rows, pos):
-    ran = [r for r in rows if len(r["checks"]) > pos]  # a crashed run has no checks
+    ran = [r for r in rows if len(r["checks"]) > pos]
     return f"{sum(r['checks'][pos]['ok'] for r in ran)}/{len(ran)}"
 
 
@@ -761,7 +741,6 @@ def scenario_report(scenario, rows):
     by_arm = {arm: [r for r in rows if r["arm"] == arm] for arm in ARMS}
     both = lambda text_for: "   ".join(f"{arm} {text_for(by_arm[arm])}" for arm in ARMS)
     lines = ["", scenario, "  runs passed   " + both(lambda rs: f"{sum(r['passed'] for r in rs)}/{len(rs)}"), "  checks passed"]
-    # Group checks by position, because some details carry run-specific text. Label each with its first row's detail.
     for pos in range(max(len(r["checks"]) for r in rows)):
         label = next(r["checks"][pos]["detail"] for r in rows if len(r["checks"]) > pos)
         lines.append("    " + both(lambda rs: check_counts(rs, pos)) + "   " + label)
@@ -769,7 +748,6 @@ def scenario_report(scenario, rows):
 
 
 def ab_report(records, roots, runs):
-    """The comparison as lines of plain ASCII, from results.jsonl-shaped records and a description of each arm's tree."""
     lines = [f"A/B comparison: {runs} runs per arm"] + [f"{arm + ':':<9}{roots[arm]}" for arm in ARMS]
     for scenario in sorted({r["scenario"] for r in records}):
         rows = sorted((r for r in records if r["scenario"] == scenario), key=lambda r: (r["rep"], ARMS.index(r["arm"])))
@@ -782,7 +760,6 @@ def pstack_state(tree):
 
 
 def ab_roots(parser, args):
-    """{arm: tree root} for A/B mode, or None in plain mode. A usage error exits nonzero."""
     if not args.variant:
         if args.base or args.runs is not None:
             parser.error("--base and --runs go with --variant")
@@ -791,8 +768,8 @@ def ab_roots(parser, args):
         parser.error("--variant runs Codex only. Claude Code loads pstack from upstream's plugin, not from ~/.agents/pstack, so it cannot run a variant tree.")
     if args.runs is not None and args.runs < 1:
         parser.error("--runs must be at least 1")
-    # The installed release's checkout: the folder that holds the pstack/ that ~/.agents/pstack links to.
-    roots = {"base": os.path.realpath(args.base or os.path.dirname(os.path.realpath(PSTACK))), "variant": os.path.realpath(args.variant)}
+    installed_checkout = os.path.dirname(os.path.realpath(PSTACK))
+    roots = {"base": os.path.realpath(args.base or installed_checkout), "variant": os.path.realpath(args.variant)}
     for arm, root in roots.items():
         if not os.path.isdir(os.path.join(root, "pstack", "skills")):
             parser.error(f"the {arm} tree has no {os.path.join(root, 'pstack', 'skills')}. --base and --variant each name a pstack checkout, the folder that holds pstack/skills/.")
@@ -800,7 +777,6 @@ def ab_roots(parser, args):
 
 
 def run_all(plan, out_dir, jobs, keep, homes):
-    """Run each (rep, scenario, harness, arm) in plan. As a run finishes, print its line, append it to results.jsonl, and delete it if it passed."""
     rows, records = [], []
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool, open(os.path.join(out_dir, "results.jsonl"), "a") as results_file:
         futures = {}
@@ -849,7 +825,6 @@ def main():
         sys.exit(f"unknown scenarios: {', '.join(sorted(unknown))}")
     runs = args.runs or DEFAULT_RUNS
     harnesses = ["codex"] if roots else [args.harness] if args.harness else ["claude", "codex"]
-    # (rep, scenario, harness, arm). Plain mode has no reps and no arms.
     plan = [(rep, n, "codex", arm) for rep, n, arm in schedule(names, runs)] if roots else [(None, n, h, None) for n in names for h in harnesses]
     out_dir = os.path.realpath(args.out)
     os.makedirs(out_dir, exist_ok=True)

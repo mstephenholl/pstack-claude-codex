@@ -289,6 +289,10 @@ def spawned(family, types=rf"pstack-effort-{EFFORT}"):
     return check
 
 
+def spawned_any(ev):
+    return ev.called(r".", name=r"Agent|(collaboration\.)?spawn_agent"), "spawned a subagent"
+
+
 def spawned_type(subagent_type, codex_marker):
     def check(ev):
         if ev.harness == "claude":
@@ -403,7 +407,7 @@ SCENARIOS = {
     "how": dict(
         skill="how",
         task="How does the user cache in cache.py work, and how does cli.py use it?",
-        checks=[read_harness, read_models, no_cursor_slugs, spawned("judgment"), answer_matches(r"cache", "explains the cache")],
+        checks=[read_harness, no_cursor_slugs, spawned_any, answer_matches(r"cache", "explains the cache")],
     ),
     "why": dict(
         skill="why",

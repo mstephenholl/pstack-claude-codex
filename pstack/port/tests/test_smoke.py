@@ -66,19 +66,23 @@ class AnswerCheckTest(unittest.TestCase):
         self.assertFalse(self.finds_stale_cache_bug("A CLI typo exits 0, and a failed save empties users.json."))
 
 
+def codex_evidence(tmp, calls, answer=""):
+    path = os.path.join(tmp, "rollout.jsonl")
+    with open(path, "w") as f:
+        for name, args in calls:
+            f.write(json.dumps({"type": "response_item", "payload": {"type": "function_call", "name": name, "arguments": json.dumps(args)}}) + "\n")
+    session = {"modified": "", "harness": "codex", "id": "s1", "path": path, "title": ""}
+    with mock.patch.object(smoke, "sessions_under", return_value=[session]):
+        return smoke.Evidence("codex", tmp, answer)
+
+
 class BraceReadTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp)
 
     def evidence(self, command):
-        path = os.path.join(self.tmp, "rollout.jsonl")
-        call = {"type": "response_item", "payload": {"type": "function_call", "name": "exec_command", "arguments": json.dumps({"cmd": command})}}
-        with open(path, "w") as f:
-            f.write(json.dumps(call) + "\n")
-        session = {"modified": "", "harness": "codex", "id": "s1", "path": path, "title": ""}
-        with mock.patch.object(smoke, "sessions_under", return_value=[session]):
-            return smoke.Evidence("codex", self.tmp, "")
+        return codex_evidence(self.tmp, [("exec_command", {"cmd": command})])
 
     def test_read_harness_sees_a_brace_expanded_read(self):
         ev = self.evidence("cat ~/.agents/pstack/skills/{pstack-harness,arena}/SKILL.md")
@@ -97,6 +101,29 @@ class BraceReadTest(unittest.TestCase):
         self.assertTrue(ev.called(r"\$\{HOME\}/x"))
         ev = self.evidence('echo {"model":"gpt-6-astra","reasoning_effort":"high"}')
         self.assertTrue(ev.called(r'\{\\"model\\":\\"gpt-6-astra\\",\\"reasoning_effort\\":\\"high\\"\}'))
+
+
+class HowScenarioTest(unittest.TestCase):
+    READS = [
+        ("exec_command", {"cmd": "cat ~/.agents/pstack/skills/how/SKILL.md"}),
+        ("exec_command", {"cmd": "cat ~/.agents/pstack/skills/pstack-harness/SKILL.md"}),
+    ]
+    SPAWN = ("spawn_agent", {"task_name": "explain", "message": "gAAAAABrBw3X"})  # how names no model, so none is passed
+    ANSWER = "get_user keeps each user in a module-level cache dict, and cli.py reads through it."
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+
+    def failures(self, calls):
+        ev = codex_evidence(self.tmp, calls, self.ANSWER)
+        return [detail for ok, detail in (check(ev) for check in smoke.SCENARIOS["how"]["checks"]) if not ok]
+
+    def test_a_codex_run_that_follows_how_passes(self):
+        self.assertEqual(self.failures(self.READS + [self.SPAWN]), [])
+
+    def test_a_codex_run_that_answers_without_a_subagent_fails(self):
+        self.assertTrue(self.failures(self.READS))
 
 
 class RunCodexTest(unittest.TestCase):
